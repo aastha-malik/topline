@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+be/.venv/
+.venv/
+
+# Environment - never commit real secrets
+.env
+.env.*
+!.env.example
+
+# Node / frontend
+node_modules/
+fe/dist/
+fe/.vite/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+
+# Supabase local state
+supabase/.temp/
+supabase/.branches/
+
+# OS
+.DS_Store
