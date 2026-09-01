@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-28T01:18:33+05:30",
+  "title": "Design System: Topline",
+  "extensions": {
+    "colorMeta": {
+      "paper": { "role": "neutral", "displayName": "Warm Ledger Paper", "canonical": "#f4f1e8", "tonalRamp": ["oklch(15% 0.012 86)", "oklch(27% 0.012 86)", "oklch(39% 0.012 86)", "oklch(51% 0.012 86)", "oklch(63% 0.012 86)", "oklch(75% 0.012 86)", "oklch(87% 0.012 86)", "oklch(95% 0.012 86)"] },
+      "surface": { "role": "neutral", "displayName": "Ledger Sheet", "canonical": "#fffdf7", "tonalRamp": ["oklch(15% 0.008 86)", "oklch(27% 0.008 86)", "oklch(39% 0.008 86)", "oklch(51% 0.008 86)", "oklch(63% 0.008 86)", "oklch(75% 0.008 86)", "oklch(87% 0.008 86)", "oklch(95% 0.008 86)"] },
+      "surface-strong": { "role": "neutral", "displayName": "Strong Sheet", "canonical": "#ffffff", "tonalRamp": ["oklch(15% 0 0)", "oklch(27% 0 0)", "oklch(39% 0 0)", "oklch(51% 0 0)", "oklch(63% 0 0)", "oklch(75% 0 0)", "oklch(87% 0 0)", "oklch(95% 0 0)"] },
+      "ink": { "role": "neutral", "displayName": "Ledger Ink", "canonical": "#18211e", "tonalRamp": ["oklch(15% 0.018 160)", "oklch(27% 0.018 160)", "oklch(39% 0.018 160)", "oklch(51% 0.018 160)", "oklch(63% 0.018 160)", "oklch(75% 0.018 160)", "oklch(87% 0.018 160)", "oklch(95% 0.018 160)"] },
+      "muted-ink": { "role": "neutral", "displayName": "Muted Clerk Ink", "canonical": "#68716c", "tonalRamp": ["oklch(15% 0.014 160)", "oklch(27% 0.014 160)", "oklch(39% 0.014 160)", "oklch(51% 0.014 160)", "oklch(63% 0.014 160)", "oklch(75% 0.014 160)", "oklch(87% 0.014 160)", "oklch(95% 0.014 160)"] },
+      "soft-fill": { "role": "neutral", "displayName": "Soft Ledger Fill", "canonical": "#ebe7db", "tonalRamp": ["oklch(15% 0.014 86)", "oklch(27% 0.014 86)", "oklch(39% 0.014 86)", "oklch(51% 0.014 86)", "oklch(63% 0.014 86)", "oklch(75% 0.014 86)", "oklch(87% 0.014 86)", "oklch(95% 0.014 86)"] },
+      "ledger-line": { "role": "neutral", "displayName": "Ledger Line", "canonical": "#dcd6c8", "tonalRamp": ["oklch(15% 0.016 78)", "oklch(27% 0.016 78)", "oklch(39% 0.016 78)", "oklch(51% 0.016 78)", "oklch(63% 0.016 78)", "oklch(75% 0.016 78)", "oklch(87% 0.016 78)", "oklch(95% 0.016 78)"] },
+      "ledger-navy": { "role": "primary", "displayName": "Ledger Navy", "canonical": "#17384b", "tonalRamp": ["oklch(15% 0.055 235)", "oklch(27% 0.055 235)", "oklch(39% 0.055 235)", "oklch(51% 0.055 235)", "oklch(63% 0.055 235)", "oklch(75% 0.055 235)", "oklch(87% 0.055 235)", "oklch(95% 0.055 235)"] },
+      "rail-navy": { "role": "primary", "displayName": "Rail Navy", "canonical": "#0e2937", "tonalRamp": ["oklch(15% 0.048 235)", "oklch(27% 0.048 235)", "oklch(39% 0.048 235)", "oklch(51% 0.048 235)", "oklch(63% 0.048 235)", "oklch(75% 0.048 235)", "oklch(87% 0.048 235)", "oklch(95% 0.048 235)"] },
+      "rail-muted": { "role": "neutral", "displayName": "Rail Muted", "canonical": "#a9bcc3", "tonalRamp": ["oklch(15% 0.025 220)", "oklch(27% 0.025 220)", "oklch(39% 0.025 220)", "oklch(51% 0.025 220)", "oklch(63% 0.025 220)", "oklch(75% 0.025 220)", "oklch(87% 0.025 220)", "oklch(95% 0.025 220)"] },
+      "rail-hover": { "role": "primary", "displayName": "Rail Hover", "canonical": "#183947", "tonalRamp": ["oklch(15% 0.042 220)", "oklch(27% 0.042 220)", "oklch(39% 0.042 220)", "oklch(51% 0.042 220)", "oklch(63% 0.042 220)", "oklch(75% 0.042 220)", "oklch(87% 0.042 220)", "oklch(95% 0.042 220)"] },
+      "approval-green": { "role": "secondary", "displayName": "Approval Green", "canonical": "#176b4d", "tonalRamp": ["oklch(15% 0.09 160)", "oklch(27% 0.09 160)", "oklch(39% 0.09 160)", "oklch(51% 0.09 160)", "oklch(63% 0.09 160)", "oklch(75% 0.09 160)", "oklch(87% 0.09 160)", "oklch(95% 0.09 160)"] },
+      "approval-green-hover": { "role": "secondary", "displayName": "Deep Approval Green", "canonical": "#105a40", "tonalRamp": ["oklch(15% 0.085 160)", "oklch(27% 0.085 160)", "oklch(39% 0.085 160)", "oklch(51% 0.085 160)", "oklch(63% 0.085 160)", "oklch(75% 0.085 160)", "oklch(87% 0.085 160)", "oklch(95% 0.085 160)"] },
+      "approval-green-soft": { "role": "secondary", "displayName": "Verification Wash", "canonical": "#dcebe2", "tonalRamp": ["oklch(15% 0.035 160)", "oklch(27% 0.035 160)", "oklch(39% 0.035 160)", "oklch(51% 0.035 160)", "oklch(63% 0.035 160)", "oklch(75% 0.035 160)", "oklch(87% 0.035 160)", "oklch(95% 0.035 160)"] },
+      "attention-saffron": { "role": "tertiary", "displayName": "Attention Saffron", "canonical": "#c77829", "tonalRamp": ["oklch(15% 0.13 65)", "oklch(27% 0.13 65)", "oklch(39% 0.13 65)", "oklch(51% 0.13 65)", "oklch(63% 0.13 65)", "oklch(75% 0.13 65)", "oklch(87% 0.13 65)", "oklch(95% 0.13 65)"] },
+      "attention-saffron-soft": { "role": "tertiary", "displayName": "Saffron Wash", "canonical": "#f7e4cc", "tonalRamp": ["oklch(15% 0.05 65)", "oklch(27% 0.05 65)", "oklch(39% 0.05 65)", "oklch(51% 0.05 65)", "oklch(63% 0.05 65)", "oklch(75% 0.05 65)", "oklch(87% 0.05 65)", "oklch(95% 0.05 65)"] },
+      "refusal-red": { "role": "tertiary", "displayName": "Refusal Red", "canonical": "#873c35", "tonalRamp": ["oklch(15% 0.095 25)", "oklch(27% 0.095 25)", "oklch(39% 0.095 25)", "oklch(51% 0.095 25)", "oklch(63% 0.095 25)", "oklch(75% 0.095 25)", "oklch(87% 0.095 25)", "oklch(95% 0.095 25)"] },
+      "refusal-red-soft": { "role": "tertiary", "displayName": "Refusal Wash", "canonical": "#f6e2dd", "tonalRamp": ["oklch(15% 0.04 25)", "oklch(27% 0.04 25)", "oklch(39% 0.04 25)", "oklch(51% 0.04 25)", "oklch(63% 0.04 25)", "oklch(75% 0.04 25)", "oklch(87% 0.04 25)", "oklch(95% 0.04 25)"] },
+      "warning-paper": { "role": "tertiary", "displayName": "Warning Paper", "canonical": "#fff0ce", "tonalRamp": ["oklch(15% 0.06 80)", "oklch(27% 0.06 80)", "oklch(39% 0.06 80)", "oklch(51% 0.06 80)", "oklch(63% 0.06 80)", "oklch(75% 0.06 80)", "oklch(87% 0.06 80)", "oklch(95% 0.06 80)"] },
+      "warning-ink": { "role": "tertiary", "displayName": "Warning Ink", "canonical": "#6f410d", "tonalRamp": ["oklch(15% 0.1 70)", "oklch(27% 0.1 70)", "oklch(39% 0.1 70)", "oklch(51% 0.1 70)", "oklch(63% 0.1 70)", "oklch(75% 0.1 70)", "oklch(87% 0.1 70)", "oklch(95% 0.1 70)"] },
+      "focus-blue": { "role": "primary", "displayName": "Focus Blue", "canonical": "#247499", "tonalRamp": ["oklch(15% 0.085 230)", "oklch(27% 0.085 230)", "oklch(39% 0.085 230)", "oklch(51% 0.085 230)", "oklch(63% 0.085 230)", "oklch(75% 0.085 230)", "oklch(87% 0.085 230)", "oklch(95% 0.085 230)"] },
+      "rail-paper": { "role": "neutral", "displayName": "Rail Paper", "canonical": "#f8f5eb", "tonalRamp": ["oklch(15% 0.012 86)", "oklch(27% 0.012 86)", "oklch(39% 0.012 86)", "oklch(51% 0.012 86)", "oklch(63% 0.012 86)", "oklch(75% 0.012 86)", "oklch(87% 0.012 86)", "oklch(95% 0.012 86)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Screen Display", "purpose": "Current screen introductions." },
+      "headline": { "displayName": "Topbar Headline", "purpose": "Greeting and current-screen orientation." },
+      "title": { "displayName": "Ledger Title", "purpose": "Section and empty-state anchors." },
+      "body": { "displayName": "Readable Record", "purpose": "Explanations and full email drafts." },
+      "label": { "displayName": "Field Label", "purpose": "Table headers, mobile field labels, and compact metadata." }
+    },
+    "shadows": [
+      { "name": "document-ambient", "value": "0 14px 36px rgba(45, 42, 30, 0.09)", "purpose": "Draft and connection sheets in light mode." },
+      { "name": "document-ambient-dark", "value": "0 18px 44px rgba(0, 0, 0, 0.28)", "purpose": "Draft and connection sheets in dark mode." },
+      { "name": "approval-lift", "value": "0 12px 28px rgba(18, 50, 68, 0.18)", "purpose": "Actionable approval summary at rest." },
+      { "name": "approval-lift-hover", "value": "0 16px 34px rgba(18, 50, 68, 0.23)", "purpose": "Actionable approval summary on hover." },
+      { "name": "button-approval", "value": "0 7px 18px rgba(23, 107, 77, 0.2)", "purpose": "Affirmative approval and send controls." },
+      { "name": "dock-lift", "value": "0 12px 30px rgba(0, 0, 0, 0.18)", "purpose": "Fixed mobile navigation above content." }
+    ],
+    "motion": [
+      { "name": "state-quick", "value": "180ms ease", "purpose": "Background, color, border, shadow, and transform transitions on links and enabled buttons." },
+      { "name": "agent-breathe", "value": "2800ms ease-in-out infinite", "purpose": "Low-intensity working-status pulse." },
+      { "name": "spinner-fast", "value": "800ms linear infinite", "purpose": "Inline send-state spinner." },
+      { "name": "spinner-standard", "value": "1000ms linear infinite", "purpose": "Sync and loading indicators." },
+      { "name": "reduced-motion", "value": "0.01ms", "purpose": "Near-instant transition and animation duration when reduced motion is requested." }
+    ],
+    "breakpoints": [
+      { "name": "summary-reflow", "value": "1000px" },
+      { "name": "rail-to-dock", "value": "900px" },
+      { "name": "records-to-cards", "value": "640px" },
+      { "name": "compact-actions", "value": "420px" }
+    ],
+    "themes": {
+      "dark": {
+        "paper": "#111917",
+        "surface": "#18211f",
+        "surface-strong": "#202a27",
+        "ink": "#edf2ec",
+        "muted-ink": "#aab6b0",
+        "soft-fill": "#26312d",
+        "ledger-line": "#35423d",
+        "ledger-navy": "#b7d4dc",
+        "rail-navy": "#091d26",
+        "rail-muted": "#a9bcc3",
+        "rail-hover": "#173642",
+        "approval-green": "#58b990",
+        "approval-green-hover": "#69caa1",
+        "approval-green-soft": "#173c30",
+        "attention-saffron": "#eda55b",
+        "attention-saffron-soft": "#4a3420",
+        "refusal-red": "#ef9990",
+        "refusal-red-soft": "#4a2928",
+        "warning-paper": "#44351d",
+        "warning-ink": "#ffd99f",
+        "focus-blue": "#69b5d8",
+        "rail-paper": "#f8f5eb"
+      }
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Approval Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Affirmative approval and send action.",
+      "html": "<button class=\"ds-btn-primary\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"><path d=\"m22 2-7 20-4-9-9-4Z\"></path><path d=\"M22 2 11 13\"></path></svg>Approve &amp; send</button>",
+      "css": ".ds-btn-primary { min-height: 44px; border: 0; border-radius: 12px; padding: 0 18px; background: var(--green, #176b4d); color: #fff; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 750 14px/1.2 'Geist Variable', Geist, sans-serif; cursor: pointer; box-shadow: 0 7px 18px rgba(23,107,77,.2); transition: background-color .18s ease, transform .18s ease; } .ds-btn-primary svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; } .ds-btn-primary:hover { background: var(--green-hover, #105a40); transform: translateY(-1px); } .ds-btn-primary:focus-visible { outline: 3px solid var(--focus, #247499); outline-offset: 3px; } .ds-btn-primary:active { transform: translateY(0); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Edit, sync, and other reversible actions.",
+      "html": "<button class=\"ds-btn-secondary\">Edit</button>",
+      "css": ".ds-btn-secondary { min-height: 44px; border: 1px solid var(--line, #dcd6c8); border-radius: 12px; padding: 0 18px; background: var(--surface, #fffdf7); color: var(--ink, #18211e); font: 750 14px/1.2 'Geist Variable', Geist, sans-serif; cursor: pointer; transition: background-color .18s ease, transform .18s ease; } .ds-btn-secondary:hover { background: var(--soft, #ebe7db); } .ds-btn-secondary:focus-visible { outline: 3px solid var(--focus, #247499); outline-offset: 3px; } .ds-btn-secondary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Quiet Reject Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Subordinate refusal action beside approval and edit.",
+      "html": "<button class=\"ds-btn-quiet\">Reject</button>",
+      "css": ".ds-btn-quiet { min-height: 44px; border: 0; border-radius: 12px; padding: 0 18px; background: transparent; color: var(--red, #873c35); font: 750 14px/1.2 'Geist Variable', Geist, sans-serif; cursor: pointer; transition: background-color .18s ease, transform .18s ease; } .ds-btn-quiet:hover { background: var(--red-soft, #f6e2dd); } .ds-btn-quiet:focus-visible { outline: 3px solid var(--focus, #247499); outline-offset: 3px; } .ds-btn-quiet:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Approval Status Chip",
+      "kind": "chip",
+      "refersTo": "chip-status",
+      "description": "Compact safety, connection, or live-state verification.",
+      "html": "<span class=\"ds-status-chip\"><i></i>Approval required</span>",
+      "css": ".ds-status-chip { min-height: 36px; padding: 0 12px; border-radius: 999px; background: var(--green-soft, #dcebe2); color: var(--green, #176b4d); display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; font: 760 11px/1.2 'Geist Variable', Geist, sans-serif; } .ds-status-chip i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 14%, transparent); }"
+    },
+    {
+      "name": "Draft Document",
+      "kind": "card",
+      "refersTo": "card-document",
+      "description": "Readable email draft with invoice context, rationale, and decisions in one sheet.",
+      "html": "<article class=\"ds-draft\"><header><strong>Bharat Traders</strong><span>Gentle</span></header><p class=\"ds-context\">₹12,000 · 8 days overdue · INV-1051</p><section><p><b>Subject:</b> A quick reminder about invoice INV-1051</p><p>Hope you’re doing well. This is a quick reminder that payment is overdue.</p></section><small>You asked for a gentle reminder. This is the first follow-up.</small></article>",
+      "css": ".ds-draft { max-width: 720px; border-radius: 16px; background: var(--surface, #fffdf7); color: var(--ink, #18211e); box-shadow: var(--shadow, 0 14px 36px rgba(45,42,30,.09)); overflow: hidden; font: 14px/1.55 'Geist Variable', Geist, sans-serif; } .ds-draft header { padding: 22px 24px 14px; display: flex; justify-content: space-between; gap: 16px; } .ds-draft header span { padding: 6px 10px; border-radius: 999px; background: var(--green-soft, #dcebe2); color: var(--green, #176b4d); font-size: 11px; font-weight: 760; } .ds-draft .ds-context { margin: 0; padding: 0 24px 18px; border-bottom: 1px solid var(--line, #dcd6c8); font-weight: 660; font-variant-numeric: tabular-nums; } .ds-draft section { max-width: 75ch; padding: 22px 24px 10px; line-height: 1.62; } .ds-draft section p { margin: 0 0 13px; } .ds-draft small { display: block; padding: 0 24px 20px; color: var(--muted, #68716c); }"
+    },
+    {
+      "name": "Draft Editor Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labelled subject field used while editing the full draft in place.",
+      "html": "<label class=\"ds-field\"><span>Subject</span><input type=\"text\" value=\"A quick reminder about invoice INV-1051\"></label>",
+      "css": ".ds-field { display: grid; gap: 7px; color: var(--muted, #68716c); font: 720 12px/1.2 'Geist Variable', Geist, sans-serif; } .ds-field input { min-height: 44px; border: 1px solid var(--line, #dcd6c8); border-radius: 11px; padding: 0 13px; background: var(--surface-strong, #fff); color: var(--ink, #18211e); font: 14px/1.2 'Geist Variable', Geist, sans-serif; } .ds-field input:hover { border-color: var(--muted, #68716c); } .ds-field input:focus-visible { outline: 3px solid var(--focus, #247499); outline-offset: 3px; }"
+    },
+    {
+      "name": "Active Rail Navigation",
+      "kind": "nav",
+      "refersTo": "navigation-active",
+      "description": "Current destination on the desktop ink rail.",
+      "html": "<nav class=\"ds-rail\"><a href=\"#\">Home</a><a class=\"ds-active\" href=\"#\">Approvals</a><a href=\"#\">Invoices</a></nav>",
+      "css": ".ds-rail { width: 238px; padding: 12px 17px; background: var(--rail, #0e2937); display: grid; gap: 6px; font: 640 13px/1 'Geist Variable', Geist, sans-serif; } .ds-rail a { min-height: 48px; border-radius: 12px; padding: 0 13px; color: var(--rail-muted, #a9bcc3); display: flex; align-items: center; text-decoration: none; transition: background-color .18s ease, color .18s ease; } .ds-rail a:hover { background: var(--rail-hover, #183947); color: #fff; } .ds-rail a:focus-visible { outline: 3px solid var(--focus, #247499); outline-offset: 3px; } .ds-rail .ds-active { background: #f8f5eb; color: #17384b; font-weight: 760; }"
+    },
+    {
+      "name": "Attention Record",
+      "kind": "custom",
+      "refersTo": "attention-row",
+      "description": "A human-review conflict that interrupts the dispatch flow.",
+      "html": "<button class=\"ds-attention\"><i>!</i><span><strong>Acme Industries</strong><small>₹40,000 · Invoice INV-1043</small></span><span>Customer says payment was made on 03 Aug 2026</span></button>",
+      "css": ".ds-attention { width: 100%; min-height: 88px; padding: 16px 20px; border: 0; border-radius: 14px; background: var(--warning-bg, #fff0ce); color: var(--warning-ink, #6f410d); display: grid; grid-template-columns: 34px minmax(180px,.7fr) minmax(220px,1fr); align-items: center; gap: 16px; text-align: left; font: 13px/1.45 'Geist Variable', Geist, sans-serif; cursor: pointer; transition: box-shadow .18s ease, transform .18s ease; } .ds-attention:hover { box-shadow: 0 10px 28px color-mix(in srgb, var(--warning-ink, #6f410d) 10%, transparent); transform: translateY(-1px); } .ds-attention:focus-visible { outline: 3px solid var(--focus, #247499); outline-offset: 3px; } .ds-attention i { width: 34px; height: 34px; border: 1px solid currentColor; border-radius: 10px; display: grid; place-items: center; font-style: normal; font-weight: 850; } .ds-attention span:first-of-type { display: grid; gap: 4px; } .ds-attention small { color: color-mix(in srgb, var(--warning-ink, #6f410d) 70%, transparent); }"
+    },
+    {
+      "name": "Audit Rail Event",
+      "kind": "custom",
+      "refersTo": "audit-event",
+      "description": "Time-stamped evidence of what Topline did and why, shown in its attention state.",
+      "html": "<div class=\"ds-audit-event\"><time>10:18 AM</time><i></i><div><strong>Flagged for your attention</strong><p>Topline paused the draft after the customer reported payment.</p></div></div>",
+      "css": ".ds-audit-event { min-height: 102px; display: grid; grid-template-columns: 96px 28px 1fr; gap: 14px; color: var(--ink, #18211e); font: 13px/1.5 'Geist Variable', Geist, sans-serif; } .ds-audit-event time { padding-top: 1px; color: var(--muted, #68716c); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; } .ds-audit-event i { position: relative; z-index: 1; width: 24px; height: 24px; border: 3px solid var(--paper, #f4f1e8); border-radius: 50%; background: var(--saffron, #c77829); box-shadow: 0 0 0 1px var(--saffron, #c77829); } .ds-audit-event i::after { content: ''; position: absolute; left: 9px; top: 22px; width: 1px; height: 76px; background: var(--line, #dcd6c8); } .ds-audit-event div { padding: 14px 16px; margin: -14px 0 18px; border-radius: 12px; background: var(--warning-bg, #fff0ce); color: var(--warning-ink, #6f410d); } .ds-audit-event strong { display: block; margin-bottom: 6px; font-size: 14px; } .ds-audit-event p { margin: 0; color: color-mix(in srgb, var(--warning-ink, #6f410d) 78%, transparent); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Dispatch Ledger",
+    "overview": "Topline feels like a quiet Indian dispatch ledger made operational: warm paper carries dense, readable records; a deep ink rail anchors orientation; and status color behaves like a clerk's verification mark. The interface is calm but not sparse. It keeps invoice amounts, full email drafts, reasons, timestamps, and access boundaries visible so a business owner can make a safe decision quickly.\n\nThe cockpit earns trust through evidence rather than reassurance alone. Approval controls stay close to the complete draft, warnings interrupt the flow in saffron paper, and every automated act remains legible in a time-stamped rail. On a phone, the same record structure compresses without hiding meaning: navigation stays fixed, approval actions stay within one-handed reach, and tables become labelled cards.",
+    "keyCharacteristics": [
+      "Warm paper and white ledger sheets against an ink-navy orientation rail.",
+      "Compact, number-conscious Geist typography with full drafts kept readable.",
+      "Green verification, saffron attention, and red refusal used as operational semantics.",
+      "Bordered records for reference data; soft elevation only for actionable document sheets.",
+      "Responsive transformations that preserve labels, context, and safety actions."
+    ],
+    "rules": [
+      { "name": "The Signal Has a Job Rule", "body": "Green confirms or approves, saffron asks for attention, and red marks rejection or critical delinquency; none is ambient decoration.", "section": "colors" },
+      { "name": "The Warning Pair Rule", "body": "Human-review conflicts use warning paper and warning ink together so the interruption remains readable in light and dark themes.", "section": "colors" },
+      { "name": "The Whole Draft Rule", "body": "Draft emails remain normal reading text with generous line-height; never compress them into previews before an approval action.", "section": "typography" },
+      { "name": "The Ledger Number Rule", "body": "Use tabular numerals for money, dates, counts, overdue age, and audit time so records scan vertically.", "section": "typography" },
+      { "name": "The Label Survives Rule", "body": "When a table becomes cards, every value keeps an explicit field label through `data-label`; responsive simplification may change structure, never meaning.", "section": "layout" },
+      { "name": "The One-Handed Decision Rule", "body": "On small screens, fixed navigation and sticky approval actions must remain separated and simultaneously reachable.", "section": "layout" },
+      { "name": "The Paper Before Shadow Rule", "body": "Use borders and tonal paper for reference records; use ambient elevation only when a surface behaves like a document or persistent control layer.", "section": "elevation" },
+      { "name": "The Radius Follows Scale Rule", "body": "Keep controls tighter than records and records tighter than document sheets; pills belong only to compact status metadata.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do keep the exact draft, agent reason, and send decision in the same document surface.",
+      "Do use green, saffron, and red only for their assigned operational meanings.",
+      "Do preserve timestamps, field labels, payment provenance, and access boundaries as visible evidence.",
+      "Do keep the 3px focus outline and reduced-motion fallback on new interactive components.",
+      "Do transform dense desktop records into labelled mobile cards and reserve clearance for fixed controls."
+    ],
+    "donts": [
+      "Don't hide an email body behind truncation, a modal, or a preview when approval is available.",
+      "Don't use green for a pending action, saffron for decoration, or red for routine navigation.",
+      "Don't detach sticky actions from the draft they affect or let them overlap the mobile dock.",
+      "Don't replace explicit verification text with a mark alone; safety and access remain readable in plain language.",
+      "Don't add hard offset shadows, ornamental gradients, or glass effects outside the implemented sticky context layers."
+    ]
+  }
+}
