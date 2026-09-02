@@ -466,15 +466,24 @@ class IngestionPipeline:
         """Work out who the customer is on this message.
 
         On mail the owner sent, the customer is the recipient; on mail the owner received,
-        it is the sender.
+        it is the sender. `guess_customer_identity` decides what counts as "the owner" -
+        wholesale for a company domain, exact-address-only for a personal email provider a
+        customer might share with the owner - so both directions defer to it rather than
+        pre-filtering by domain here.
         """
         if record.direction == MessageDirection.OUTBOUND:
             for address in message.to_emails:
-                if email_domain(address) not in self.owner_domains:
-                    return guess_customer_identity(address, "", self.owner_domains)
+                identity = guess_customer_identity(
+                    address, "", self.owner_domains, owner_email=self.account.email_address
+                )
+                if identity is not None:
+                    return identity
             return None
         return guess_customer_identity(
-            message.from_email, message.from_name, self.owner_domains
+            message.from_email,
+            message.from_name,
+            self.owner_domains,
+            owner_email=self.account.email_address,
         )
 
     async def _process_attachments(

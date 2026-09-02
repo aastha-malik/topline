@@ -75,6 +75,20 @@ BANK_DOMAIN_HINTS: tuple[str, ...] = (
     "idfcfirstbank", "indusind", "pnb", "bankofbaroda", "canarabank", "unionbank",
 )
 
+#: Free/personal email providers. A company's own domain (acme.co.in) is safe to exclude
+#: wholesale - every address on it is a colleague. These are not: many unrelated small
+#: businesses and their customers all use gmail.com, so excluding the whole domain would
+#: make every other Gmail user invisible as a customer. Only the owner's own exact address
+#: is excluded on a domain in this set (see `guess_customer_identity`).
+PERSONAL_EMAIL_DOMAINS: frozenset[str] = frozenset(
+    {
+        "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.in", "yahoo.co.uk",
+        "outlook.com", "hotmail.com", "hotmail.co.in", "live.com", "msn.com",
+        "icloud.com", "me.com", "aol.com", "protonmail.com", "proton.me",
+        "rediffmail.com", "ymail.com", "gmx.com",
+    }
+)
+
 #: Senders that are never receivables context, however many keywords they contain.
 NOISE_DOMAIN_HINTS: tuple[str, ...] = (
     "linkedin.com", "facebook.com", "twitter.com", "x.com", "instagram.com",
@@ -285,8 +299,10 @@ def score_message(
         score += 30
         reasons.append(RelevanceReason("known_customer", 30, domain or meta.from_email))
 
-    if domain and domain in owner_domains:
-        # Internal mail is usually chatter unless it also carries strong signals.
+    if domain and domain in owner_domains and domain not in PERSONAL_EMAIL_DOMAINS:
+        # Internal mail is usually chatter unless it also carries strong signals. This
+        # penalty only makes sense for a company's own domain - sharing a free provider
+        # like gmail.com with the owner says nothing about whether a sender is internal.
         score -= 10
         reasons.append(RelevanceReason("internal_sender", -10, domain))
 

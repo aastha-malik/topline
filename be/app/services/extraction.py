@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
 
-from app.services.relevance import CLAIM_KEYWORDS, email_domain
+from app.services.relevance import CLAIM_KEYWORDS, PERSONAL_EMAIL_DOMAINS, email_domain
 
 # --------------------------------------------------------------------------------------
 # Evidence
@@ -449,18 +449,38 @@ def guess_customer_identity(
     from_email: str | None,
     from_name: str | None,
     owner_domains: frozenset[str] | set[str] = frozenset(),
+    *,
+    owner_email: str | None = None,
 ) -> tuple[str, str] | None:
-    """Return ``(name, email)`` for the counterparty, or None if it is the owner."""
+    """Return ``(name, email)`` for the counterparty, or None if it is the owner.
+
+    A company's own domain (`owner_domains`) is excluded wholesale - every address on
+    acme.co.in is a colleague, not a customer. A personal email provider is not excluded
+    that way, because many unrelated businesses and their customers share gmail.com,
+    yahoo.com, and the like; there, only the owner's own exact address (`owner_email`) is
+    excluded, so a customer who happens to also mail from Gmail is still recognised.
+    """
     if not from_email:
         return None
     email = from_email.strip().lower()
+    if owner_email and email == owner_email.strip().lower():
+        return None
     domain = email_domain(email)
-    if not domain or domain in owner_domains:
+    if not domain:
+        return None
+    if domain in owner_domains and domain not in PERSONAL_EMAIL_DOMAINS:
         return None
     name = (from_name or "").strip()
     if not name or "@" in name:
-        # Fall back to a title-cased domain: "acmetraders.in" -> "Acmetraders"
-        name = domain.split(".")[0].replace("-", " ").title()
+        if domain in PERSONAL_EMAIL_DOMAINS:
+            # The domain is shared by unrelated people, so it makes a useless display name
+            # ("Gmail" for every single gmail.com customer) - use the local part instead:
+            # "captionfx.founder" -> "Captionfx Founder".
+            local = email.split("@", 1)[0]
+            name = re.sub(r"[._+-]+", " ", local).strip().title() or "Customer"
+        else:
+            # Fall back to a title-cased domain: "acmetraders.in" -> "Acmetraders"
+            name = domain.split(".")[0].replace("-", " ").title()
     return name, email
 
 
