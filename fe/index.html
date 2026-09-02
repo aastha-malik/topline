@@ -18,6 +18,17 @@
       FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
     -->
     <div id="root"></div>
+    <script>
+      // Apply the saved theme before first paint so dark mode never flashes light.
+      (function () {
+        try {
+          var saved = localStorage.getItem("topline-theme");
+          var dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+          if (dark) document.documentElement.classList.add("theme-dark");
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        } catch (e) { /* storage blocked - fall back to light */ }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

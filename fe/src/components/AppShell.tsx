@@ -9,10 +9,11 @@ import {
   ShieldCheck,
   Sun,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
-import { isDemoMode } from "../api/client";
+import { api, isDemoMode } from "../api/client";
+import { LoadingState } from "./FeedbackState";
 
 const navigation = [
   { label: "Home", mobileLabel: "Home", path: "/", icon: Home },
@@ -22,6 +23,40 @@ const navigation = [
   { label: "Connect", mobileLabel: "Connect", path: "/connect", icon: Link2 },
 ];
 
+type ConnectionGate = "checking" | "connected" | "blocked";
+
+/**
+ * Every route but Connect depends on an owner already existing (see `resolve_owner` on the
+ * backend). A brand-new install has no owner until Gmail is connected, so those routes would
+ * otherwise surface the backend's raw "No owner found" 404. This gate sends a first-run
+ * visitor straight to Connect instead, and re-checks whenever navigation leaves Connect so a
+ * fresh connect (or disconnect) is picked up without a stale redirect loop.
+ */
+function useConnectionGate(pathname: string): ConnectionGate {
+  const [gate, setGate] = useState<ConnectionGate>("checking");
+  const previousPath = useRef(pathname);
+
+  const check = useCallback(async () => {
+    try {
+      const status = await api.getConnection();
+      setGate(status.connected ? "connected" : "blocked");
+    } catch {
+      // A reachable-but-erroring API is a different problem than "no owner yet" - let the
+      // destination screen's own error state explain it rather than bouncing to Connect.
+      setGate("connected");
+    }
+  }, []);
+
+  useEffect(() => { void check(); }, [check]);
+
+  useEffect(() => {
+    if (previousPath.current === "/connect" && pathname !== "/connect") void check();
+    previousPath.current = pathname;
+  }, [pathname, check]);
+
+  return gate;
+}
+
 function useTheme() {
   const [dark, setDark] = useState(() => {
     const saved = window.localStorage.getItem("topline-theme");
@@ -30,6 +65,7 @@ function useTheme() {
   useEffect(() => {
     window.localStorage.setItem("topline-theme", dark ? "dark" : "light");
     document.documentElement.style.colorScheme = dark ? "dark" : "light";
+    document.documentElement.classList.toggle("theme-dark", dark);
   }, [dark]);
   return [dark, setDark] as const;
 }
@@ -37,6 +73,7 @@ function useTheme() {
 export function AppShell() {
   const location = useLocation();
   const [dark, setDark] = useTheme();
+  const gate = useConnectionGate(location.pathname);
   const title = navigation.find((item) => item.path === location.pathname)?.label ?? "Home";
   const dateLabel = useMemo(() => new Intl.DateTimeFormat("en-IN", {
     weekday: "short",
@@ -89,7 +126,15 @@ export function AppShell() {
           </div>
         </header>
         <main id="main-content" tabIndex={-1}>
-          <Outlet />
+          {location.pathname === "/connect" ? (
+            <Outlet />
+          ) : gate === "checking" ? (
+            <div className="screen-content"><LoadingState label="Checking your connection…" /></div>
+          ) : gate === "blocked" ? (
+            <Navigate to="/connect" replace />
+          ) : (
+            <Outlet />
+          )}
         </main>
       </section>
 

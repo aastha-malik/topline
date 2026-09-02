@@ -41,7 +41,8 @@ a { color: inherit; }
 * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 48%, transparent) transparent; }
 *:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 
-.app-shell { min-height: 100vh; display: grid; grid-template-columns: 238px minmax(0, 1fr); background: var(--paper); }
+.app-shell { min-height: 100vh; display: grid; grid-template-columns: 238px minmax(0, 1fr); background: var(--paper); color: var(--ink); }
+:root.theme-dark,
 .theme-dark {
   --paper: #111917;
   --surface: #18211f;
@@ -67,7 +68,10 @@ a { color: inherit; }
   --shadow: 0 18px 44px rgba(0, 0, 0, .28);
   --shadow-lift: 0 14px 32px rgba(0, 0, 0, .3);
   color-scheme: dark;
+  background: var(--paper);
+  color: var(--ink);
 }
+:root.theme-dark ::selection,
 .theme-dark ::selection { color: var(--ink); background: #285444; }
 .skip-link { position: fixed; z-index: 100; top: 12px; left: 12px; padding: 10px 14px; border-radius: 10px; background: var(--surface-strong); color: var(--ink); transform: translateY(-160%); }
 .skip-link:focus { transform: translateY(0); }
