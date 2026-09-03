@@ -237,6 +237,31 @@ In short: the agent is trusted to notice, summarise, and draft — never to deci
 
 ---
 
+## 5. Security & Privacy
+
+Reading someone's inbox and touching money means the boring parts have to be solid. What actually protects the owner's data:
+
+- **Least access, on purpose.** When Gmail is connected, Topline only ever asks for permission to read mail and to send mail — never permission to delete, relabel, or otherwise edit what's already in the inbox. That broader permission is deliberately never requested, and the app refuses to even start up if it's ever accidentally configured to ask for it.
+- **Login keys are encrypted, not stored in plain text.** The tokens that keep Topline connected to Gmail are encrypted before they're saved. Reading the database directly would not hand over a usable login.
+- **Secrets never reach the browser.** API keys, encryption keys, and provider credentials all live on the server. The dashboard the owner's browser loads never receives or stores anything that a malicious script could steal.
+- **The database has no side door.** Direct outside access to the data is switched off entirely at the database level — the backend service is the only path in. Even if some other tool were pointed at the database, there is no open door for it to read through.
+- **Payment confirmations are verified, not trusted blindly.** A message claiming an invoice was paid is checked with a signed, tamper-evident verification before Topline trusts it — a look-alike request cannot be used to falsely mark something paid.
+
+None of this is about being clever. It's about making sure a mistake in one place can't quietly turn into lost money or a leaked inbox somewhere else.
+
+## 6. Where Things Stand Today
+
+Topline is a working product, not a finished one — being upfront about that:
+
+- **One connected business at a time, for now.** Proper multi-business sign-in, and the database-level wall that keeps one business's data from ever being reachable by another, are both designed in but not switched on yet. This should land before more than one business genuinely shares the same deployment.
+- **Scanned PDFs need an extra, optional step.** Reading text out of a scanned (image-only) invoice PDF needs an additional component installed. Without it, Topline is honest about the gap — it flags the attachment as unreadable rather than guessing at numbers it can't actually see.
+- **Gmail is checked on a schedule, not instantly.** New mail is picked up periodically (and automatically, once a day, by [the cron job](#the-daily-cron-job)) rather than the moment it arrives. A newly received invoice-relevant email may take a little while to show up.
+- **The daily digest runs on one fixed schedule.** Every connected business is checked at the same hour; there's no per-business timing yet.
+
+Each of these is a deliberate, known trade-off for where the product is today, not an accident — and each one is designed to fail safely, by asking a human, rather than silently doing the wrong thing.
+
+---
+
 ## Project layout
 
 ```
