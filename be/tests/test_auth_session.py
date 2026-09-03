@@ -140,3 +140,37 @@ class TestSessionEndpoints:
 
     async def test_session_without_a_cookie_is_401(self, app_client):
         assert (await app_client.get("/api/v1/auth/session")).status_code == 401
+
+
+class TestCookieFlags:
+    def test_lax_is_the_default(self):
+        from fastapi import Response
+
+        from app.config import Settings
+        from app.services.session import set_session_cookie
+
+        resp = Response()
+        set_session_cookie(resp, "tok", Settings(_env_file=None, token_encryption_key="x"))
+        cookie = resp.headers["set-cookie"].lower()
+        assert "samesite=lax" in cookie
+
+    def test_samesite_none_forces_secure(self):
+        from fastapi import Response
+
+        from app.config import Settings
+        from app.services.session import set_session_cookie
+
+        resp = Response()
+        set_session_cookie(
+            resp,
+            "tok",
+            Settings(
+                _env_file=None,
+                token_encryption_key="x",
+                session_cookie_samesite="none",
+                session_cookie_secure=False,
+            ),
+        )
+        cookie = resp.headers["set-cookie"].lower()
+        assert "samesite=none" in cookie
+        assert "secure" in cookie

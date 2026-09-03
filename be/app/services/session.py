@@ -81,24 +81,33 @@ def read_session(token: str | None, settings: Settings | None = None) -> uuid.UU
         return None
 
 
+def _cookie_flags(settings: Settings) -> tuple[str, bool]:
+    """(samesite, secure). ``SameSite=None`` is only valid alongside ``Secure``."""
+    samesite = settings.session_cookie_samesite
+    secure = settings.session_cookie_secure or samesite == "none"
+    return samesite, secure
+
+
 def set_session_cookie(response: Response, token: str, settings: Settings) -> None:
     """Attach the session cookie with the right hardening for the environment."""
+    samesite, secure = _cookie_flags(settings)
     response.set_cookie(
         SESSION_COOKIE,
         token,
         max_age=settings.session_ttl_hours * 3600,
         httponly=True,
-        samesite="lax",
-        secure=settings.session_cookie_secure,
+        samesite=samesite,
+        secure=secure,
         path="/",
     )
 
 
 def clear_session_cookie(response: Response, settings: Settings) -> None:
+    samesite, secure = _cookie_flags(settings)
     response.delete_cookie(
         SESSION_COOKIE,
         path="/",
         httponly=True,
-        samesite="lax",
-        secure=settings.session_cookie_secure,
+        samesite=samesite,
+        secure=secure,
     )

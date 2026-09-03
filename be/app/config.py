@@ -71,8 +71,13 @@ class Settings(BaseSettings):
     session_encryption_key: str = Field(default="")
     session_ttl_hours: int = Field(default=720, ge=1)
     #: Send the session cookie only over HTTPS. Keep false for plain-http local dev; set
-    #: true in every deployed environment.
+    #: true in every deployed environment. Forced true when samesite is "none".
     session_cookie_secure: bool = False
+    #: "lax" when the API and the SPA are same-origin (the Vite dev proxy, or a Vercel
+    #: /api rewrite in production) - the robust default. Set "none" when the SPA calls the
+    #: API cross-origin (a separate api.* host); the browser then also requires Secure, and
+    #: Safari/Firefox may still drop it as a third-party cookie.
+    session_cookie_samesite: Literal["lax", "none", "strict"] = "lax"
     #: Development-only escape hatch: honour an `X-Owner-Id` header when there is no session.
     #: Ignored unless the environment is `local` or `test`.
     allow_owner_header: bool = False
