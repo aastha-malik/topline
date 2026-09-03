@@ -14,6 +14,7 @@ from __future__ import annotations
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
@@ -157,9 +158,16 @@ async def google_oauth_callback(
         dedupe_key=audit_key("gmail.account_connected", account.id, account.connected_at),
     )
 
-    redirect = f"{settings.frontend_post_auth_redirect}?connected={email}"
+    token = issue_session(user.id)
+    # The cookie carries the session for same-origin deployments. The URL fragment hands
+    # the same token to a cross-origin SPA (which the browser will not send the cookie to);
+    # a fragment is never sent to a server or logged, and the SPA strips it on load.
+    redirect = (
+        f"{settings.frontend_post_auth_redirect}"
+        f"?connected={quote(email)}#s={quote(token)}"
+    )
     response = RedirectResponse(url=redirect, status_code=status.HTTP_302_FOUND)
-    set_session_cookie(response, issue_session(user.id), settings)
+    set_session_cookie(response, token, settings)
     return response
 
 

@@ -62,13 +62,17 @@ the ledger tables).
   or an API response. OAuth state is single-use and expires.
 - **Connecting Google is signing in.** The callback resolves the owner from the verified
   Google `sub` — a returning identity reuses its workspace; a new one gets a fresh
-  `workspace` + `owner` — then mints a Fernet-signed session cookie
+  `workspace` + `owner` — then mints a Fernet-signed session token
   ([`app/services/session.py`](app/services/session.py)). Every owner-facing route depends
   on `CurrentOwner`; there is no unauthenticated fallback. `X-Owner-Id` is honoured only
   when `ALLOW_OWNER_HEADER=true` and `ENVIRONMENT` is `local`/`test`.
-- The cookie must be first-party to the SPA, so point `GOOGLE_REDIRECT_URI` at the
-  frontend origin's `/api/...` path (the Vite dev server proxies it here; in production a
-  Vercel rewrite does). Set `SESSION_COOKIE_SECURE=true` in every deployed environment.
+- The token reaches the browser two ways, so both deployment shapes work:
+  - an **HttpOnly cookie** — all that's needed when the API and the SPA share an origin
+    (the Vite dev proxy, or a Vercel `/api` rewrite). Keep `SESSION_COOKIE_SAMESITE=lax`.
+  - the redirect's **URL fragment** (`#s=…`) — for a cross-origin SPA the browser won't
+    send the cookie to; the SPA stores it and sends `Authorization: Bearer …`. Point
+    `GOOGLE_REDIRECT_URI` straight at this backend in that case.
+  Set `SESSION_COOKIE_SECURE=true` in every deployed environment.
 
 ### Gmail ingestion
 Ingestion is deliberately staged so the mailbox is never bulk-copied:

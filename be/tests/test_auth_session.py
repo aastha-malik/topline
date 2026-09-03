@@ -67,6 +67,20 @@ class TestSessionRequired:
         )
         assert resp.status_code == 401
 
+    async def test_bearer_token_authenticates(self, app_client, owner):
+        token = issue_session(owner.id)
+        resp = await app_client.get(
+            "/api/v1/auth/session", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["user"]["email"] == owner.email
+
+    async def test_a_garbage_bearer_token_is_401(self, app_client, owner):
+        resp = await app_client.get(
+            "/api/v1/auth/session", headers={"Authorization": "Bearer not-a-real-token"}
+        )
+        assert resp.status_code == 401
+
     async def test_unknown_user_in_a_valid_token_is_401(self, app_client):
         import uuid
 

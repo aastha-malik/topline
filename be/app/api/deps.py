@@ -32,6 +32,13 @@ class CurrentOwner:
     email: str
 
 
+def _bearer_token(request: Request) -> str | None:
+    """`Authorization: Bearer <session token>` - used when the SPA and API are on
+    different origins and the browser will not send the session cookie cross-site."""
+    scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+    return token.strip() if scheme.lower() == "bearer" and token.strip() else None
+
+
 def _owner_header_id(request: Request, settings: Settings) -> uuid.UUID | None:
     """The dev-only `X-Owner-Id` seam. Off unless explicitly enabled outside production."""
     if not settings.allow_owner_header or settings.environment not in ("local", "test"):
@@ -52,8 +59,9 @@ async def resolve_owner(
     request: Request,
     settings: AppSettings,
 ) -> CurrentOwner:
-    """Resolve the acting owner from the session cookie (or the dev header seam)."""
-    user_id = read_session(request.cookies.get(SESSION_COOKIE), settings)
+    """Resolve the acting owner from the session (Bearer token or cookie)."""
+    token = _bearer_token(request) or request.cookies.get(SESSION_COOKIE)
+    user_id = read_session(token, settings)
     if user_id is None:
         user_id = _owner_header_id(request, settings)
     if user_id is None:

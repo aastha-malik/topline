@@ -15,6 +15,42 @@ import type {
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api/v1").replace(/\/$/, "");
 
+/**
+ * Session token. The OAuth callback also sets an HttpOnly cookie, which is all that's
+ * needed when the API is same-origin with the app. When they're on different origins
+ * (a separate api host) the browser won't send that cookie, so the callback additionally
+ * hands the token back in the redirect's URL fragment; we stash it and send it as a
+ * bearer token. The fragment is stripped from the URL immediately.
+ */
+const TOKEN_KEY = "topline_session";
+
+function readStoredToken(): string | null {
+  try {
+    return window.localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeToken(token: string | null) {
+  try {
+    if (token) window.localStorage.setItem(TOKEN_KEY, token);
+    else window.localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* private-mode / storage disabled - the cookie still covers same-origin deploys */
+  }
+}
+
+function captureTokenFromUrl() {
+  const match = window.location.hash.match(/[#&]s=([^&]+)/);
+  if (!match) return;
+  storeToken(decodeURIComponent(match[1]));
+  const clean = window.location.pathname + window.location.search;
+  window.history.replaceState(null, "", clean || "/");
+}
+
+captureTokenFromUrl();
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -29,6 +65,8 @@ export class ApiError extends Error {
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  const token = readStoredToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
 
   let response: Response;
   try {
@@ -38,6 +76,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (!response.ok) {
+    if (response.status === 401) storeToken(null);
     const body = await response.json().catch(() => ({})) as { detail?: string };
     const message =
       response.status === 401
@@ -47,6 +86,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
+}
+
+export function clearSession() {
+  storeToken(null);
 }
 
 const liveApi = {
@@ -62,7 +105,13 @@ const liveApi = {
     return { summary, customers, invoices, drafts, activity, syncRuns };
   },
   getSession: () => request<SessionInfo>("/auth/session"),
-  logout: () => request<void>("/auth/logout", { method: "POST" }),
+  async logout() {
+    try {
+      await request<void>("/auth/logout", { method: "POST" });
+    } finally {
+      clearSession();
+    }
+  },
   listCustomers: () => request<Customer[]>("/customers"),
   listInvoices: () => request<Invoice[]>("/invoices"),
   listActivity: () => request<ActivityLog[]>("/activity?limit=100"),

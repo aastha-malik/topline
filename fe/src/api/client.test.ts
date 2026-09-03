@@ -10,6 +10,38 @@ const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringif
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  window.localStorage.clear();
+});
+
+describe("session token handoff", () => {
+  it("captures the token from the URL fragment, strips it, and sends it as a bearer", async () => {
+    window.history.replaceState(null, "", "/connect?connected=me%40x.in#s=tok-abc123");
+    vi.resetModules();
+    const { api: freshApi } = await import("./client");
+
+    expect(window.localStorage.getItem("topline_session")).toBe("tok-abc123");
+    expect(window.location.hash).toBe("");
+    expect(window.location.search).toBe("?connected=me%40x.in");
+
+    let seen: Headers | undefined;
+    vi.stubGlobal("fetch", vi.fn(async (_input: unknown, init: RequestInit) => {
+      seen = init.headers as Headers;
+      return jsonResponse({ authenticated: true });
+    }));
+    await freshApi.getSession();
+
+    expect(seen?.get("Authorization")).toBe("Bearer tok-abc123");
+  });
+
+  it("drops the stored token on a 401", async () => {
+    window.localStorage.setItem("topline_session", "stale");
+    vi.resetModules();
+    const { api: freshApi, ApiError } = await import("./client");
+
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ detail: "nope" }, 401)));
+    await expect(freshApi.listInvoices()).rejects.toBeInstanceOf(ApiError);
+    expect(window.localStorage.getItem("topline_session")).toBeNull();
+  });
 });
 
 describe("live API transport", () => {
