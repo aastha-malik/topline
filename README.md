@@ -89,6 +89,17 @@ Topline can also connect to a payment provider used for collecting payments in I
 
 Every meaningful step — a message ignored, an invoice's state changing, a draft being created, an approval, a send, a failure — is written to an activity log with a timestamp, the reason, and a reference back to the original evidence. The dashboard's "Activity" screen is simply this log, made readable. Nothing happens invisibly.
 
+### The daily cron job
+
+Topline doesn't wait for the owner to open the dashboard to notice an overdue invoice. A **cron job** — a task that runs automatically on a fixed schedule, with no one needing to click anything — checks every connected business once a day, at 9 AM Indian time, and builds that day's digest: the list of invoices that are genuinely due for a reminder, worked out from the ledger.
+
+A few things keep this safe and boring, on purpose:
+
+- **It only prepares, never sends.** The cron job builds the digest and, from there, follows the exact same drafting and approval steps described in [section 4](#4-the-agent-explained). It has no shortcut that skips the owner's approval.
+- **It's off by default.** A single setting turns it on; if it fails to start for any reason, the rest of the app keeps running normally, and the owner can still trigger the same daily check by hand at any time.
+- **Only one copy runs at a time.** Even if the backend is running as several instances, the schedule enforces a single active run, so the same digest is never built — or sent — twice by accident.
+- **A missed run catches up, once.** If the server happened to be down at 9 AM, the job is still allowed to run within about an hour afterwards. Past that window it simply waits for the next day, rather than firing a stale reminder late.
+
 ---
 
 ## 3. Flows
@@ -148,7 +159,8 @@ Ingestion service — list → peek at headers → score relevance
        each traceable back to its source email or payment record
             │
             ▼
-Daily cycle — pick every invoice that is genuinely due for a reminder
+Daily cycle — triggered automatically by the cron job (or run by hand);
+picks every invoice that is genuinely due for a reminder
             │
             ▼
 AI-assisted drafting — write the reminder text using only that
@@ -201,7 +213,7 @@ customer's own invoice evidence, with a citation for every claim made
 ### What it actually does, in three jobs
 
 **1. Builds the daily digest.**
-Once a day, it looks at the ledger and picks out exactly the invoices the rulebook (see section 2) already marked as due for a reminder — it does not invent new candidates. It groups them by customer, explains in plain terms why each one qualifies (how much is owed, how overdue it is, whether reminders were already sent before), and sends the owner a short summary. The owner can reply in plain English — "send 1 and 3," "skip 2," "draft item 4, firmer tone" — and the AI model's only job here is to turn that sentence into a structured instruction (which item, which action, how confident it is that it understood correctly).
+Once a day — woken up automatically by the [cron job](#the-daily-cron-job), or triggered by hand — it looks at the ledger and picks out exactly the invoices the rulebook (see section 2) already marked as due for a reminder; it does not invent new candidates. It groups them by customer, explains in plain terms why each one qualifies (how much is owed, how overdue it is, whether reminders were already sent before), and sends the owner a short summary. The owner can reply in plain English — "send 1 and 3," "skip 2," "draft item 4, firmer tone" — and the AI model's only job here is to turn that sentence into a structured instruction (which item, which action, how confident it is that it understood correctly).
 
 **2. Drafts the reminder email.**
 For each invoice the owner asks Topline to draft, the AI model is given only that one customer's own evidence — their invoices, their payment history, their prior reminders — and asked to write a short, appropriately toned reminder email, citing which piece of evidence backs each fact it states. Nothing outside that customer's own file is visible to it, so it cannot borrow facts from someone else's invoice by mistake.
