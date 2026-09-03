@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.enums import PaymentEventType, PaymentProvider
 from app.logging_config import get_logger
-from app.models import Invoice, PaymentEvent
+from app.models import Customer, Invoice, PaymentEvent, User
 from app.services import ledger
 from app.services.audit import audit_key, record_event
 
@@ -86,6 +86,9 @@ class RazorpayEvent:
     customer_contact: str | None = None
     #: `notes.invoice_number` is the cleanest join back to a Gmail-extracted invoice.
     invoice_number: str | None = None
+    #: `notes.workspace_id`, when a caller stamps invoices with their tenant id. The
+    #: strongest possible routing signal for a shared Razorpay integration.
+    workspace_id: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -139,6 +142,7 @@ def parse_webhook_payload(payload: dict[str, Any], *, event_id: str | None = Non
             or notes.get("invoice")
             or invoice.get("invoice_number")
         ),
+        workspace_id=notes.get("workspace_id") or notes.get("topline_workspace_id"),
         raw=payload,
     )
 
@@ -148,6 +152,82 @@ def _as_int(value: Any) -> int | None:
         return int(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+# --------------------------------------------------------------------------------------
+# Tenant routing
+# --------------------------------------------------------------------------------------
+
+
+async def resolve_workspace_for_event(
+    session: AsyncSession, event: RazorpayEvent, *, pinned: str | None = None
+) -> uuid.UUID | None:
+    """Decide which workspace a webhook event belongs to.
+
+    One global `RAZORPAY_KEY_ID` means one business, so `pinned` (`RAZORPAY_WORKSPACE_ID`)
+    settles it outright. Failing that, route on the strongest available signal - an
+    explicit `notes.workspace_id`, then a stored Razorpay id on an existing invoice, then
+    a unique invoice-number or customer-email match. Anything ambiguous returns ``None``
+    and the caller drops the event rather than charging it to an arbitrary owner.
+    """
+    if pinned:
+        try:
+            return uuid.UUID(pinned)
+        except ValueError:
+            return None
+
+    if event.workspace_id:
+        try:
+            return uuid.UUID(event.workspace_id)
+        except ValueError:
+            pass
+
+    for column, value in (
+        (Invoice.razorpay_invoice_id, event.razorpay_invoice_id),
+        (Invoice.razorpay_payment_id, event.razorpay_payment_id),
+    ):
+        if value:
+            ws = await session.scalar(
+                select(Invoice.workspace_id).where(column == value).limit(1)
+            )
+            if ws is not None:
+                return ws
+
+    if event.invoice_number:
+        normalized = event.invoice_number.strip().upper().replace(" ", "")
+        rows = (
+            await session.scalars(
+                select(Invoice.workspace_id)
+                .where(Invoice.normalized_number == normalized)
+                .distinct()
+            )
+        ).all()
+        if len(rows) == 1:
+            return rows[0]
+
+    if event.customer_email:
+        rows = (
+            await session.scalars(
+                select(Customer.workspace_id)
+                .where(Customer.primary_email == event.customer_email)
+                .distinct()
+            )
+        ).all()
+        if len(rows) == 1:
+            return rows[0]
+
+    return None
+
+
+async def owner_id_for_workspace(
+    session: AsyncSession, workspace_id: uuid.UUID
+) -> uuid.UUID | None:
+    return await session.scalar(
+        select(User.id)
+        .where(User.workspace_id == workspace_id, User.role == "owner")
+        .order_by(User.created_at)
+        .limit(1)
+    )
 
 
 # --------------------------------------------------------------------------------------

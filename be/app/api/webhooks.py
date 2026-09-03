@@ -10,11 +10,9 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
-from sqlalchemy import select
 
 from app.api.deps import AppSettings, DbSession
 from app.logging_config import get_logger
-from app.models import User, Workspace
 from app.schemas import WebhookAckResponse
 from app.services import razorpay_sync
 from app.services.razorpay_sync import WebhookSignatureError
@@ -69,25 +67,27 @@ async def razorpay_webhook(
             detail=f"Ignored unhandled event type: {payload.get('event')}",
         )
 
-    workspace = await session.scalar(select(Workspace).order_by(Workspace.created_at).limit(1))
-    if workspace is None:
-        # Nothing to reconcile against yet; 200 keeps Razorpay from retrying forever.
+    workspace_id = await razorpay_sync.resolve_workspace_for_event(
+        session, event, pinned=settings.razorpay_workspace_id
+    )
+    if workspace_id is None:
+        # Cannot place this event with confidence. 200 stops Razorpay retrying; the event
+        # is dropped rather than charged to an arbitrary owner.
+        logger.warning(
+            "razorpay webhook could not be routed to a workspace",
+            extra={"event_id": event.event_id, "event": event.event_name},
+        )
         return WebhookAckResponse(
             received=True,
             event_id=event.event_id,
             processed=False,
-            detail="No workspace is provisioned yet; event discarded",
+            detail="Event could not be matched to a workspace; discarded",
         )
-    owner_id = await session.scalar(
-        select(User.id)
-        .where(User.workspace_id == workspace.id, User.role == "owner")
-        .order_by(User.created_at)
-        .limit(1)
-    )
+    owner_id = await razorpay_sync.owner_id_for_workspace(session, workspace_id)
 
     result = await razorpay_sync.ingest_event(
         session,
-        workspace_id=workspace.id,
+        workspace_id=workspace_id,
         owner_id=owner_id,
         event=event,
         settings=settings,

@@ -1,9 +1,9 @@
 """Shared FastAPI dependencies.
 
-Auth note: the demo is single-owner, so `resolve_owner` falls back to the workspace's owner
-when no Supabase Auth context is present. The seam is deliberate - when Supabase Auth is
-wired up, verifying the JWT here is the only change needed, and every route that already
-depends on `CurrentOwner` becomes authenticated at once.
+Auth: every owner-facing route depends on `CurrentOwner`, resolved from the session cookie
+minted by the Google OAuth callback (`app.services.session`). There is no unauthenticated
+fallback - a request without a valid session is rejected. `X-Owner-Id` is honoured only as
+a local/test convenience, and only when `ALLOW_OWNER_HEADER=true`.
 """
 
 from __future__ import annotations
@@ -12,13 +12,14 @@ import uuid
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
 from app.db import get_db
-from app.models import GmailAccount, User, Workspace
+from app.models import GmailAccount, User
+from app.services.session import SESSION_COOKIE, read_session
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 AppSettings = Annotated[Settings, Depends(get_settings)]
@@ -31,33 +32,41 @@ class CurrentOwner:
     email: str
 
 
+def _owner_header_id(request: Request, settings: Settings) -> uuid.UUID | None:
+    """The dev-only `X-Owner-Id` seam. Off unless explicitly enabled outside production."""
+    if not settings.allow_owner_header or settings.environment not in ("local", "test"):
+        return None
+    raw = request.headers.get("X-Owner-Id")
+    if not raw:
+        return None
+    try:
+        return uuid.UUID(raw)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="X-Owner-Id must be a UUID"
+        ) from None
+
+
 async def resolve_owner(
     session: DbSession,
-    x_owner_id: Annotated[str | None, Header(alias="X-Owner-Id")] = None,
+    request: Request,
+    settings: AppSettings,
 ) -> CurrentOwner:
-    """Resolve the acting owner.
-
-    `X-Owner-Id` selects an owner explicitly (useful for the demo and for tests). Without
-    it, the single seeded owner is used. Replace the fallback with Supabase JWT verification
-    before this is exposed to more than one tenant.
-    """
-    if x_owner_id:
-        try:
-            owner_uuid = uuid.UUID(x_owner_id)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="X-Owner-Id must be a UUID"
-            ) from None
-        user = await session.scalar(select(User).where(User.id == owner_uuid))
-    else:
-        user = await session.scalar(
-            select(User).where(User.role == "owner").order_by(User.created_at).limit(1)
+    """Resolve the acting owner from the session cookie (or the dev header seam)."""
+    user_id = read_session(request.cookies.get(SESSION_COOKIE), settings)
+    if user_id is None:
+        user_id = _owner_header_id(request, settings)
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not signed in. Connect a Google account to continue.",
         )
 
+    user = await session.get(User, user_id)
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No owner found. Connect a Gmail account first (POST /api/v1/auth/google/start).",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session is no longer valid. Sign in again.",
         )
     return CurrentOwner(user_id=user.id, workspace_id=user.workspace_id, email=user.email)
 
@@ -88,13 +97,3 @@ async def get_gmail_account(
             detail="No connected Gmail account. Complete the Google OAuth flow first.",
         )
     return account
-
-
-async def ensure_workspace(session: AsyncSession, name: str = "Topline Workspace") -> Workspace:
-    """Return the demo workspace, creating it on first connect."""
-    workspace = await session.scalar(select(Workspace).order_by(Workspace.created_at).limit(1))
-    if workspace is None:
-        workspace = Workspace(name=name, business_name=name, sender_name=name)
-        session.add(workspace)
-        await session.flush()
-    return workspace

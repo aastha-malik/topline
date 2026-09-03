@@ -7,6 +7,7 @@ import type {
   DraftUpdate,
   Invoice,
   LedgerSummary,
+  SessionInfo,
   SyncRun,
 } from "./types";
 
@@ -57,6 +58,8 @@ export const demoApi = {
   async listDrafts() { await wait(); return [...demoDrafts]; },
   async listSyncRuns() { await wait(); return demoSyncRuns; },
   async getConnection(): Promise<ConnectionStatus> { await wait(); return { connected: true, google_oauth_configured: true, razorpay_configured: true, accounts: [{ id: "gmail-demo", email_address: "aastha@topline.in", status: "connected", granted_scopes: ["gmail.readonly", "gmail.send"], backfill_status: "completed", last_backfill_at: isoMinutesAgo(10000), last_incremental_sync_at: isoMinutesAgo(82), connected_at: isoMinutesAgo(12000) }] }; },
+  async getSession(): Promise<SessionInfo> { await wait(); return { authenticated: true, user: { id: "owner-demo", email: "aastha@topline.in", name: "Aastha" }, workspace: { id: "workspace-demo", business_name: "Topline (demo)" } }; },
+  async logout() { await wait(); },
   async updateDraft(id: string, value: DraftUpdate) { await wait(); demoDrafts = demoDrafts.map((draft) => draft.id === id ? { ...draft, ...value, updated_at: new Date().toISOString() } : draft); return demoDrafts.find((draft) => draft.id === id)!; },
   async approveDraft(id: string) { await wait(); demoDrafts = demoDrafts.map((draft) => draft.id === id ? { ...draft, status: "approved", approved_at: new Date().toISOString() } : draft); return demoDrafts.find((draft) => draft.id === id)!; },
   async sendDraft(id: string) { await wait(); demoDrafts = demoDrafts.map((draft) => draft.id === id ? { ...draft, status: "sent", sent_at: new Date().toISOString() } : draft); return demoDrafts.find((draft) => draft.id === id)!; },

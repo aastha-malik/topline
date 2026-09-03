@@ -101,6 +101,26 @@ a { color: inherit; }
 .theme-toggle:hover, .avatar:hover { background: var(--soft); }
 .avatar { width: 42px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
 
+/* Account menu */
+.account-menu { position: relative; }
+.account-popover { position: absolute; z-index: 30; top: calc(100% + 8px); right: 0; min-width: 220px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-strong); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; }
+.account-identity { padding: 8px 10px 10px; border-bottom: 1px solid var(--line); display: grid; gap: 2px; }
+.account-identity strong { font-size: 12px; }
+.account-identity span { color: var(--muted); font-size: 11px; word-break: break-all; }
+.account-popover button { min-height: 38px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 680; }
+.account-popover button:hover { background: var(--soft); }
+
+/* Sign-in */
+.signin-shell { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; background: var(--paper); color: var(--ink); }
+.signin-card { width: min(100%, 400px); padding: 34px 30px 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface-strong); box-shadow: var(--shadow); text-align: center; }
+.signin-card .brand-mark { margin: 0 auto 18px; }
+.signin-card h1 { margin: 0 0 10px; font-size: 22px; letter-spacing: -.02em; }
+.signin-card > p { margin: 0 0 22px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.signin-card .google-button { margin: 0; }
+.signin-error { margin: 14px 0 0; color: var(--red); font-size: 12px; }
+.signin-assurance { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); display: flex; align-items: flex-start; gap: 9px; color: var(--muted); font-size: 11px; line-height: 1.5; text-align: left; }
+.signin-assurance svg { flex: 0 0 auto; color: var(--green); margin-top: 1px; }
+
 .screen-content { width: min(100%, 1440px); margin: 0 auto; padding: 34px clamp(24px, 5vw, 72px) 72px; }
 .screen-intro { margin-bottom: 30px; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
 .screen-intro h2 { margin: 0 0 9px; font-size: clamp(29px, 4vw, 42px); line-height: 1.04; letter-spacing: -.04em; }

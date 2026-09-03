@@ -3,6 +3,7 @@ import {
   CircleUserRound,
   Home,
   Link2,
+  LogOut,
   Moon,
   ReceiptIndianRupee,
   Send,
@@ -13,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { api, isDemoMode } from "../api/client";
+import type { SessionInfo } from "../api/types";
 import { LoadingState } from "./FeedbackState";
 
 const navigation = [
@@ -23,16 +25,42 @@ const navigation = [
   { label: "Connect", mobileLabel: "Connect", path: "/connect", icon: Link2 },
 ];
 
+type AuthGate = "checking" | "authed" | "signed-out";
 type ConnectionGate = "checking" | "connected" | "blocked";
 
+const DEMO_SESSION: SessionInfo = {
+  authenticated: true,
+  user: { id: "demo", email: "you@yourbusiness.in", name: "You" },
+  workspace: { id: "demo", business_name: "Demo workspace" },
+};
+
 /**
- * Every route but Connect depends on an owner already existing (see `resolve_owner` on the
- * backend). A brand-new install has no owner until Gmail is connected, so those routes would
- * otherwise surface the backend's raw "No owner found" 404. This gate sends a first-run
- * visitor straight to Connect instead, and re-checks whenever navigation leaves Connect so a
- * fresh connect (or disconnect) is picked up without a stale redirect loop.
+ * Every route in the shell requires a signed-in owner. The backend establishes the session
+ * in the Google OAuth callback; here we just ask `/auth/session` who we are and bounce to
+ * `/signin` when the answer is 401. Demo mode has no backend, so it is always "authed".
  */
-function useConnectionGate(pathname: string): ConnectionGate {
+function useAuthGate(): { gate: AuthGate; session: SessionInfo | null } {
+  const [gate, setGate] = useState<AuthGate>(isDemoMode ? "authed" : "checking");
+  const [session, setSession] = useState<SessionInfo | null>(isDemoMode ? DEMO_SESSION : null);
+
+  useEffect(() => {
+    if (isDemoMode) return;
+    let alive = true;
+    api.getSession()
+      .then((info) => { if (alive) { setSession(info); setGate("authed"); } })
+      .catch(() => { if (alive) { setSession(null); setGate("signed-out"); } });
+    return () => { alive = false; };
+  }, []);
+
+  return { gate, session };
+}
+
+/**
+ * Every route but Connect depends on a mailbox already being connected. A first-run visitor
+ * is sent to Connect instead of the destination screen's raw error, and the check re-runs
+ * whenever navigation leaves Connect so a fresh connect (or disconnect) is picked up.
+ */
+function useConnectionGate(pathname: string, authed: boolean): ConnectionGate {
   const [gate, setGate] = useState<ConnectionGate>("checking");
   const previousPath = useRef(pathname);
 
@@ -41,18 +69,18 @@ function useConnectionGate(pathname: string): ConnectionGate {
       const status = await api.getConnection();
       setGate(status.connected ? "connected" : "blocked");
     } catch {
-      // A reachable-but-erroring API is a different problem than "no owner yet" - let the
+      // A reachable-but-erroring API is a different problem than "no mailbox yet" - let the
       // destination screen's own error state explain it rather than bouncing to Connect.
       setGate("connected");
     }
   }, []);
 
-  useEffect(() => { void check(); }, [check]);
+  useEffect(() => { if (authed) void check(); }, [authed, check]);
 
   useEffect(() => {
-    if (previousPath.current === "/connect" && pathname !== "/connect") void check();
+    if (authed && previousPath.current === "/connect" && pathname !== "/connect") void check();
     previousPath.current = pathname;
-  }, [pathname, check]);
+  }, [pathname, authed, check]);
 
   return gate;
 }
@@ -70,10 +98,63 @@ function useTheme() {
   return [dark, setDark] as const;
 }
 
+function AccountMenu({ session }: { session: SessionInfo | null }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  async function signOut() {
+    try { await api.logout(); } catch { /* clearing the cookie client-side is enough */ }
+    window.location.assign("/signin");
+  }
+
+  return (
+    <div className="account-menu" ref={ref}>
+      <button
+        className="avatar"
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Account menu"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <CircleUserRound size={20} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="account-popover" role="menu">
+          {session && (
+            <div className="account-identity">
+              <strong>{session.user.name || session.user.email}</strong>
+              <span>{session.user.email}</span>
+            </div>
+          )}
+          <button type="button" role="menuitem" onClick={signOut}>
+            <LogOut size={15} aria-hidden="true" />Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AppShell() {
   const location = useLocation();
   const [dark, setDark] = useTheme();
-  const gate = useConnectionGate(location.pathname);
+  const { gate: authGate, session } = useAuthGate();
+  const connectionGate = useConnectionGate(location.pathname, authGate === "authed");
   const title = navigation.find((item) => item.path === location.pathname)?.label ?? "Home";
   const dateLabel = useMemo(() => new Intl.DateTimeFormat("en-IN", {
     weekday: "short",
@@ -81,6 +162,13 @@ export function AppShell() {
     month: "short",
     year: "numeric",
   }).format(new Date()).toUpperCase(), []);
+
+  if (authGate === "checking") {
+    return <div className="screen-content"><LoadingState label="Checking your session…" /></div>;
+  }
+  if (authGate === "signed-out") {
+    return <Navigate to="/signin" replace />;
+  }
 
   return (
     <div className={dark ? "app-shell theme-dark" : "app-shell"}>
@@ -120,17 +208,15 @@ export function AppShell() {
               {dark ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
               <span>{dark ? "Light" : "Dark"}</span>
             </button>
-            <button className="avatar" type="button" aria-label="Account menu">
-              <CircleUserRound size={20} aria-hidden="true" />
-            </button>
+            <AccountMenu session={session} />
           </div>
         </header>
         <main id="main-content" tabIndex={-1}>
           {location.pathname === "/connect" ? (
             <Outlet />
-          ) : gate === "checking" ? (
+          ) : connectionGate === "checking" ? (
             <div className="screen-content"><LoadingState label="Checking your connection…" /></div>
-          ) : gate === "blocked" ? (
+          ) : connectionGate === "blocked" ? (
             <Navigate to="/connect" replace />
           ) : (
             <Outlet />

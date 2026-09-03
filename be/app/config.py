@@ -65,6 +65,18 @@ class Settings(BaseSettings):
         description="Fernet key, urlsafe-base64 32 bytes. Generate with: python -m app.keygen",
     )
 
+    # --- Owner sessions ---
+    #: Fernet key that signs the session cookie. Falls back to `token_encryption_key` when
+    #: blank, so an existing deployment needs no new secret. Rotating it signs everyone out.
+    session_encryption_key: str = Field(default="")
+    session_ttl_hours: int = Field(default=720, ge=1)
+    #: Send the session cookie only over HTTPS. Keep false for plain-http local dev; set
+    #: true in every deployed environment.
+    session_cookie_secure: bool = False
+    #: Development-only escape hatch: honour an `X-Owner-Id` header when there is no session.
+    #: Ignored unless the environment is `local` or `test`.
+    allow_owner_header: bool = False
+
     # --- Google OAuth / Gmail ---
     google_client_id: str | None = None
     google_client_secret: str | None = None
@@ -101,6 +113,10 @@ class Settings(BaseSettings):
     razorpay_key_id: str | None = None
     razorpay_key_secret: str | None = None
     razorpay_webhook_secret: str | None = None
+    #: One global Razorpay integration means one business. Pin its workspace here and every
+    #: webhook lands there. Left unset, the receiver resolves the workspace from the event
+    #: and drops anything it cannot place - it never guesses an owner.
+    razorpay_workspace_id: str | None = None
 
     # --- Owned by the agent developer; declared here so config lives in one place ---
     gemini_api_key: str | None = None
@@ -138,6 +154,10 @@ class Settings(BaseSettings):
         if self.enable_gmail_send_scope:
             scopes.append(GMAIL_SEND_SCOPE)
         return scopes
+
+    @property
+    def session_key(self) -> str:
+        return self.session_encryption_key or self.token_encryption_key
 
     @property
     def google_oauth_configured(self) -> bool:

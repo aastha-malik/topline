@@ -166,6 +166,19 @@ class SqlAlchemyAgentRepository:
             return []
         async with self._sessions() as session:
             user = await self._user(session, owner_id)
+            # Never surface evidence for an invoice the owner does not own, even if the
+            # caller passes its id.
+            ids = list(
+                (
+                    await session.scalars(
+                        sa.select(Invoice.id).where(
+                            Invoice.owner_id == _uuid(owner_id), Invoice.id.in_(ids)
+                        )
+                    )
+                ).all()
+            )
+            if not ids:
+                return []
             linked_rows = (
                 await session.execute(
                     sa.select(InvoiceSourceLink, SourceMessage, SourceAttachment, PaymentEvent)

@@ -48,9 +48,10 @@ Twelve tables in [`supabase/migrations`](../supabase/migrations), mirrored by
 
 Money is stored in **paise as `BIGINT`** — never floats. Row Level Security is enabled and
 forced on every table with no permissive policy for `anon`/`authenticated`: the FastAPI
-backend is the only way in.
+backend is the only way in, and it scopes every query by `workspace_id` (and `owner_id` on
+the ledger tables).
 
-### Google OAuth (least privilege)
+### Google OAuth + owner sessions (least privilege)
 - Scopes requested: `openid`, `email`, `profile`, `gmail.readonly`, and `gmail.send`.
 - `gmail.send` is **provisioned but never exercised here** — nothing in this milestone sends
   mail. Set `ENABLE_GMAIL_SEND_SCOPE=false` to drop it entirely.
@@ -59,6 +60,15 @@ backend is the only way in.
   in [`app/config.py`](app/config.py) makes configuring a write scope a startup error.
 - Refresh tokens are Fernet-encrypted at rest; plaintext never reaches a column, a log line,
   or an API response. OAuth state is single-use and expires.
+- **Connecting Google is signing in.** The callback resolves the owner from the verified
+  Google `sub` — a returning identity reuses its workspace; a new one gets a fresh
+  `workspace` + `owner` — then mints a Fernet-signed session cookie
+  ([`app/services/session.py`](app/services/session.py)). Every owner-facing route depends
+  on `CurrentOwner`; there is no unauthenticated fallback. `X-Owner-Id` is honoured only
+  when `ALLOW_OWNER_HEADER=true` and `ENVIRONMENT` is `local`/`test`.
+- The cookie must be first-party to the SPA, so point `GOOGLE_REDIRECT_URI` at the
+  frontend origin's `/api/...` path (the Vite dev server proxies it here; in production a
+  Vercel rewrite does). Set `SESSION_COOKIE_SECURE=true` in every deployed environment.
 
 ### Gmail ingestion
 Ingestion is deliberately staged so the mailbox is never bulk-copied:
@@ -131,10 +141,12 @@ generation, the approval workflow and guarded send, customer-reply classificatio
 Deferred by design:
 
 - **No mail is sent.** `gmail.send` is provisioned; the send path is the agent layer's.
-- **Supabase Auth is stubbed.** `resolve_owner` falls back to the single seeded owner and
-  honours an `X-Owner-Id` header. The seam is one function — swap the body for JWT
-  verification and every route becomes authenticated at once. **Do not expose this
-  multi-tenant until that lands.**
+- **Auth is session-cookie only.** The Google OAuth callback establishes the session
+  (see above). Supabase Auth (`SUPABASE_JWT_SECRET`, `users.supabase_user_id`) is still
+  unused — a future option if password/MFA login is wanted. DB-enforced RLS policies
+  (connecting as `authenticated` with per-request JWT claims) are also a future
+  hardening step; today isolation is enforced in the query layer with deny-all RLS as
+  the "no PostgREST" backstop.
 - **OCR needs opt-in system packages** (`pytesseract` + `tesseract-ocr`, and a rasteriser).
   Without them, scanned PDFs are flagged `ocr_unavailable`, never silently dropped.
 - **No Gmail push/PubSub** — polling is sufficient for the demo.
@@ -191,11 +203,16 @@ migration is edited afterwards.
 
 ### Connect a mailbox and ingest
 
+Sign in through the dashboard (`npm run dev`, then "Continue with Google") so the browser
+holds a session cookie. For raw `curl` against a local run, set `ALLOW_OWNER_HEADER=true`
+and pass the owner id:
+
 ```bash
 curl -X POST localhost:8000/api/v1/auth/google/start     # open authorization_url in a browser
-curl -X POST localhost:8000/api/v1/sync/backfill -H 'Content-Type: application/json' -d '{"months": 12}'
-curl localhost:8000/api/v1/invoices?state=ready_for_reminder
-curl localhost:8000/api/v1/messages                      # includes ignored mail, with reasons
+OWNER=$(curl -s localhost:8000/api/v1/auth/session -H "X-Owner-Id: <owner-uuid>" | jq -r .user.id)
+curl -X POST localhost:8000/api/v1/sync/backfill -H "X-Owner-Id: $OWNER" -H 'Content-Type: application/json' -d '{"months": 12}'
+curl "localhost:8000/api/v1/invoices?state=ready_for_reminder" -H "X-Owner-Id: $OWNER"
+curl localhost:8000/api/v1/messages -H "X-Owner-Id: $OWNER"   # includes ignored mail, with reasons
 ```
 
 ---
@@ -209,7 +226,9 @@ Full schemas are published at `/openapi.json` and rendered at `/docs`.
 | `GET` | `/api/v1/health` | Liveness; does not touch the database |
 | `GET` | `/api/v1/health/ready` | Readiness: database, token encryption, Google, Razorpay |
 | `POST` | `/api/v1/auth/google/start` | Begin OAuth; returns the consent URL + single-use state |
-| `GET` | `/api/v1/auth/google/callback` | OAuth redirect target; stores encrypted tokens |
+| `GET` | `/api/v1/auth/google/callback` | OAuth redirect target; stores tokens, sets the session cookie |
+| `GET` | `/api/v1/auth/session` | Current owner + workspace; `401` when not signed in |
+| `POST` | `/api/v1/auth/logout` | Clear the session cookie |
 | `GET` | `/api/v1/auth/connection` | Gmail/Razorpay connection status |
 | `DELETE` | `/api/v1/auth/connection/{account_id}` | Disconnect; discards tokens, retains the ledger |
 | `POST` | `/api/v1/sync/backfill` | Backfill finance-relevant Gmail history |
@@ -252,6 +271,8 @@ fixtures — no network, no credentials, no Postgres required.
 | `test_incremental_sync.py` | `historyId` sync; expiry → scoped resync; cursor only advances on success |
 | `test_razorpay.py` | Signature verification, reconciliation strategies, replay idempotency, refunds |
 | `test_api.py` | Health, OpenAPI inventory, ledger reads, webhook HTTP behaviour |
+| `test_auth_session.py` | Session cookie required; **one owner never sees another's ledger** |
+| `test_link_account.py` | One workspace per Google identity; additive mailbox linking |
 | `test_security.py` | Token encryption at rest, key rotation, scope guard |
 | `test_schema_parity.py` | Models vs SQL migration drift; every enum value has a CHECK constraint |
 

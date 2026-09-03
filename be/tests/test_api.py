@@ -7,7 +7,9 @@ from datetime import date
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import func, select
 
+from app.api.deps import CurrentOwner, resolve_owner
 from app.config import GMAIL_READONLY_SCOPE, GMAIL_SEND_SCOPE, get_settings
 from app.db import get_db
 from app.enums import PaymentState
@@ -21,13 +23,16 @@ SECRET = "test_webhook_secret"
 
 @pytest_asyncio.fixture
 async def client(engine, workspace, owner, session):
-    """An app whose database dependency is bound to the test session."""
+    """An app bound to the test session and authenticated as the seeded owner."""
     app = create_app()
 
     async def override_db():
         yield session
 
     app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[resolve_owner] = lambda: CurrentOwner(
+        user_id=owner.id, workspace_id=workspace.id, email=owner.email
+    )
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as http:
         yield http
@@ -171,7 +176,16 @@ class TestWebhookEndpoint:
     async def test_valid_signature_is_accepted(self, client, workspace, owner):
         payload = {
             "event": "payment.captured",
-            "payload": {"payment": {"entity": {"id": "pay_1", "amount": 100, "currency": "INR"}}},
+            "payload": {
+                "payment": {
+                    "entity": {
+                        "id": "pay_1",
+                        "amount": 100,
+                        "currency": "INR",
+                        "notes": {"workspace_id": str(workspace.id)},
+                    }
+                }
+            },
         }
         body = json.dumps(payload).encode()
         response = await client.post(
@@ -201,6 +215,30 @@ class TestWebhookEndpoint:
             headers={"Content-Type": "application/json"},
         )
         assert response.status_code == 401
+
+    async def test_unroutable_event_is_dropped_not_charged_to_an_owner(self, client, session):
+        from app.models import PaymentEvent
+
+        payload = {
+            "event": "payment.captured",
+            "payload": {"payment": {"entity": {
+                "id": "pay_nomatch", "amount": 999, "currency": "INR",
+                "email": "stranger@nowhere.example",
+            }}},
+        }
+        body = json.dumps(payload).encode()
+        response = await client.post(
+            "/api/v1/webhooks/razorpay",
+            content=body,
+            headers={
+                "X-Razorpay-Signature": build_test_signature(body, SECRET),
+                "X-Razorpay-Event-Id": "evt_nomatch",
+                "Content-Type": "application/json",
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["processed"] is False
+        assert await session.scalar(select(func.count(PaymentEvent.id))) == 0
 
     async def test_unhandled_event_is_acknowledged_not_retried(self, client, workspace):
         """A 200 stops Razorpay retrying an event we intentionally do not act on."""

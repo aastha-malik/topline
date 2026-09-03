@@ -59,7 +59,11 @@ async def list_customers(
     customers = (
         await session.scalars(
             select(Customer)
-            .where(Customer.workspace_id == owner.workspace_id, Customer.is_archived.is_(False))
+            .where(
+                Customer.workspace_id == owner.workspace_id,
+                Customer.owner_id == owner.user_id,
+                Customer.is_archived.is_(False),
+            )
             .order_by(Customer.name)
             .limit(limit)
         )
@@ -82,7 +86,9 @@ async def customer_dossier(
     """
     customer = await session.scalar(
         select(Customer).where(
-            Customer.id == customer_id, Customer.workspace_id == owner.workspace_id
+            Customer.id == customer_id,
+            Customer.workspace_id == owner.workspace_id,
+            Customer.owner_id == owner.user_id,
         )
     )
     if customer is None:
@@ -91,7 +97,11 @@ async def customer_dossier(
     invoices = (
         await session.scalars(
             select(Invoice)
-            .where(Invoice.workspace_id == owner.workspace_id, Invoice.customer_id == customer.id)
+            .where(
+                Invoice.workspace_id == owner.workspace_id,
+                Invoice.owner_id == owner.user_id,
+                Invoice.customer_id == customer.id,
+            )
             .order_by(Invoice.due_date.desc().nullslast())
         )
     ).all()
@@ -159,7 +169,9 @@ async def list_invoices(
     on cooldown. Nothing here is ever presented as confirmed payment without a provider
     confirmation behind it.
     """
-    stmt = select(Invoice).where(Invoice.workspace_id == owner.workspace_id)
+    stmt = select(Invoice).where(
+        Invoice.workspace_id == owner.workspace_id, Invoice.owner_id == owner.user_id
+    )
     if customer_id is not None:
         stmt = stmt.where(Invoice.customer_id == customer_id)
     if state is EffectiveState.READY_FOR_REMINDER:
@@ -195,7 +207,9 @@ async def get_invoice(
 ) -> InvoiceWithEvidenceResponse:
     invoice = await session.scalar(
         select(Invoice).where(
-            Invoice.id == invoice_id, Invoice.workspace_id == owner.workspace_id
+            Invoice.id == invoice_id,
+            Invoice.workspace_id == owner.workspace_id,
+            Invoice.owner_id == owner.user_id,
         )
     )
     if invoice is None:
@@ -226,9 +240,11 @@ async def invoice_source_attachments(
                 InvoiceSourceLink,
                 InvoiceSourceLink.source_attachment_id == SourceAttachment.id,
             )
+            .join(Invoice, Invoice.id == InvoiceSourceLink.invoice_id)
             .where(
                 InvoiceSourceLink.invoice_id == invoice_id,
                 SourceAttachment.workspace_id == owner.workspace_id,
+                Invoice.owner_id == owner.user_id,
             )
         )
     ).all()
@@ -239,11 +255,17 @@ async def invoice_source_attachments(
 async def ledger_summary(session: DbSession, owner: Owner) -> LedgerSummaryResponse:
     invoices = (
         await session.scalars(
-            select(Invoice).where(Invoice.workspace_id == owner.workspace_id)
+            select(Invoice).where(
+                Invoice.workspace_id == owner.workspace_id,
+                Invoice.owner_id == owner.user_id,
+            )
         )
     ).all()
     customer_count = await session.scalar(
-        select(func.count(Customer.id)).where(Customer.workspace_id == owner.workspace_id)
+        select(func.count(Customer.id)).where(
+            Customer.workspace_id == owner.workspace_id,
+            Customer.owner_id == owner.user_id,
+        )
     )
     by_state = Counter(str(i.effective_state) for i in invoices)
     return LedgerSummaryResponse(

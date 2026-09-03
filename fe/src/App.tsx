@@ -6,10 +6,12 @@ import { ApprovalsScreen } from "./screens/ApprovalsScreen";
 import { ConnectScreen } from "./screens/ConnectScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { InvoicesScreen } from "./screens/InvoicesScreen";
+import { SignInScreen } from "./screens/SignInScreen";
 
 export default function App() {
   return (
     <Routes>
+      <Route path="/signin" element={<SignInScreen />} />
       <Route element={<AppShell />}>
         <Route index element={<HomeScreen />} />
         <Route path="approvals" element={<ApprovalsScreen />} />

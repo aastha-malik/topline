@@ -9,11 +9,11 @@ import type {
   DraftUpdate,
   Invoice,
   LedgerSummary,
+  SessionInfo,
   SyncRun,
 } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api/v1").replace(/\/$/, "");
-const OWNER_ID = import.meta.env.VITE_OWNER_ID?.trim();
 
 export class ApiError extends Error {
   constructor(
@@ -29,7 +29,6 @@ export class ApiError extends Error {
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  if (OWNER_ID) headers.set("X-Owner-Id", OWNER_ID);
 
   let response: Response;
   try {
@@ -40,7 +39,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { detail?: string };
-    throw new ApiError(body.detail || `Request failed with status ${response.status}.`, response.status, body.detail);
+    const message =
+      response.status === 401
+        ? "Your session has ended. Sign in with Google to continue."
+        : body.detail || `Request failed with status ${response.status}.`;
+    throw new ApiError(message, response.status, body.detail);
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
@@ -58,6 +61,8 @@ const liveApi = {
     ]);
     return { summary, customers, invoices, drafts, activity, syncRuns };
   },
+  getSession: () => request<SessionInfo>("/auth/session"),
+  logout: () => request<void>("/auth/logout", { method: "POST" }),
   listCustomers: () => request<Customer[]>("/customers"),
   listInvoices: () => request<Invoice[]>("/invoices"),
   listActivity: () => request<ActivityLog[]>("/activity?limit=100"),

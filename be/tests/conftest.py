@@ -77,6 +77,24 @@ async def owner(session, workspace) -> User:
 
 
 @pytest_asyncio.fixture
+async def second_workspace(session) -> Workspace:
+    ws = Workspace(name="Harbor Freight", business_name="Harbor Freight",
+                   sender_name="Harbor Freight")
+    session.add(ws)
+    await session.flush()
+    return ws
+
+
+@pytest_asyncio.fixture
+async def other_owner(session, second_workspace) -> User:
+    user = User(workspace_id=second_workspace.id, email="rita@harborfreight.in",
+                name="Rita", role="owner")
+    session.add(user)
+    await session.flush()
+    return user
+
+
+@pytest_asyncio.fixture
 async def gmail_account(session, workspace, owner) -> GmailAccount:
     account = GmailAccount(
         workspace_id=workspace.id,

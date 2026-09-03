@@ -120,6 +120,12 @@ export interface AuthStart {
   scopes: string[];
 }
 
+export interface SessionInfo {
+  authenticated: boolean;
+  user: { id: UUID; email: string; name: string | null };
+  workspace: { id: UUID; business_name: string };
+}
+
 export interface DraftUpdate {
   subject: string;
   text_body: string;

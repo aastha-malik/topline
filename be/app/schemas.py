@@ -52,6 +52,23 @@ class AuthStartResponse(BaseModel):
     scopes: list[str]
 
 
+class SessionUser(BaseModel):
+    id: uuid.UUID
+    email: str
+    name: str | None = None
+
+
+class SessionWorkspace(BaseModel):
+    id: uuid.UUID
+    business_name: str
+
+
+class SessionResponse(BaseModel):
+    authenticated: bool = True
+    user: SessionUser
+    workspace: SessionWorkspace
+
+
 class GmailAccountResponse(ORMModel):
     id: uuid.UUID
     workspace_id: uuid.UUID

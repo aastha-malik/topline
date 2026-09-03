@@ -130,6 +130,45 @@ class TestPayloadParsing:
         assert event.razorpay_invoice_id == "inv_R1"
 
 
+class TestWorkspaceRouting:
+    async def test_pinned_workspace_wins(self, session, workspace, owner):
+        event = parse_webhook_payload(captured_payload(), event_id="evt_1")
+        resolved = await razorpay_sync.resolve_workspace_for_event(
+            session, event, pinned=str(workspace.id)
+        )
+        assert resolved == workspace.id
+
+    async def test_routes_by_a_matching_invoice(self, session, workspace, owner):
+        await seed_invoice(session, workspace, owner)
+        event = parse_webhook_payload(captured_payload(), event_id="evt_1")
+        resolved = await razorpay_sync.resolve_workspace_for_event(session, event)
+        assert resolved == workspace.id
+
+    async def test_unroutable_event_returns_none(self, session, workspace, owner):
+        event = parse_webhook_payload(
+            captured_payload(invoice_number=None, email="stranger@nowhere.in"),
+            event_id="evt_1",
+        )
+        assert await razorpay_sync.resolve_workspace_for_event(session, event) is None
+
+    async def test_ambiguous_customer_email_is_not_guessed(
+        self, session, workspace, owner, second_workspace, other_owner
+    ):
+        await ledger.upsert_customer(
+            session, workspace_id=workspace.id, owner_id=owner.id,
+            name="Shared", email="shared@customer.in",
+        )
+        await ledger.upsert_customer(
+            session, workspace_id=second_workspace.id, owner_id=other_owner.id,
+            name="Shared", email="shared@customer.in",
+        )
+        event = parse_webhook_payload(
+            captured_payload(invoice_number=None, email="shared@customer.in"),
+            event_id="evt_1",
+        )
+        assert await razorpay_sync.resolve_workspace_for_event(session, event) is None
+
+
 class TestReconciliation:
     async def test_capture_confirms_payment_and_stops_reminders(
         self, session, workspace, owner
