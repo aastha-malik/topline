@@ -23,6 +23,16 @@ class RunDailyCycleRequest(BaseModel):
     run_date: date = Field(default_factory=date.today)
 
 
+class BuildDailyQueueRequest(BaseModel):
+    # Omitted by the dashboard so the service resolves "today" in IST itself.
+    run_date: date | None = None
+
+
+class DraftDigestItemRequest(BaseModel):
+    tone: str = Field(default="normal", max_length=40)
+    note: str | None = Field(default=None, max_length=2_000)
+
+
 class OwnerReplyRequest(BaseModel):
     body: str = Field(min_length=1)
     digest_id: str | None = None
@@ -75,6 +85,36 @@ def create_agent_router(
         service: AgentOrchestrator = Depends(get_orchestrator),
     ) -> Any:
         return _payload(await service.run_daily_cycle(owner_id=owner_id, run_date=request.run_date))
+
+    @router.post("/daily-queue")
+    async def build_daily_queue(
+        request: BuildDailyQueueRequest,
+        owner_id: str = Depends(get_owner_id),
+        service: AgentOrchestrator = Depends(get_orchestrator),
+    ) -> Any:
+        """The dashboard's daily review: build today's actionable queue, send nothing."""
+        result = await service.get_daily_queue(owner_id=owner_id, run_date=request.run_date)
+        drafts = await service.repository.list_drafts(owner_id, result.digest.id)
+        return _payload(
+            {"digest": result.digest, "items": list(result.items), "drafts": drafts}
+        )
+
+    @router.post("/digest-items/{digest_item_id}/draft", status_code=status.HTTP_201_CREATED)
+    async def draft_digest_item(
+        digest_item_id: str,
+        request: DraftDigestItemRequest,
+        owner_id: str = Depends(get_owner_id),
+        service: AgentOrchestrator = Depends(get_orchestrator),
+    ) -> Any:
+        return _payload(
+            await service.draft_digest_item(
+                owner_id=owner_id,
+                digest_item_id=digest_item_id,
+                tone=request.tone,
+                note=request.note,
+                actor_id=owner_id,
+            )
+        )
 
     @router.get("/daily-cycles/{digest_id}")
     async def view_daily_cycle(

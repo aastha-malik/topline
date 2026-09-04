@@ -3,7 +3,11 @@ import type {
   AgentDraft,
   ConnectionStatus,
   Customer,
+  DailyQueue,
   DashboardData,
+  Digest,
+  DigestItem,
+  DraftItemRequest,
   DraftUpdate,
   Invoice,
   LedgerSummary,
@@ -28,9 +32,19 @@ export const demoInvoices: Invoice[] = [
 ];
 
 let demoDrafts: AgentDraft[] = [
-  { id: "draft-bharat", owner_id: "owner-demo", digest_id: "digest-demo", customer_id: "customer-bharat", customer_email: "bharat.traders@gmail.com", invoice_ids: ["invoice-bharat"], subject: "A quick reminder about invoice INV-1051", text_body: "Hi Bharat Traders team,\n\nHope you’re doing well. This is a quick reminder that payment of ₹12,000 for invoice INV-1051 was due 8 days ago.\n\nCould you please let us know when we can expect the payment? If it is already in process, no further action is needed.\n\nThank you,\nAastha", rationale: "You asked for a gentle reminder. This is the first follow-up.", tone: "gentle", status: "pending", source_snapshot: {}, agent_decision: {}, customer_thread_id: null, approved_at: null, sent_at: null, created_at: isoMinutesAgo(38), updated_at: isoMinutesAgo(38) },
   { id: "draft-acme", owner_id: "owner-demo", digest_id: "digest-demo", customer_id: "customer-acme", customer_email: "accounts@acme.in", invoice_ids: ["invoice-acme"], subject: "Payment overdue: Invoice INV-1043", text_body: "Hi Acme team,\n\nThis is a reminder that payment of ₹40,000 for invoice INV-1043 is now 32 days overdue.\n\nPlease arrange payment at the earliest, or share the payment reference if it has already been completed so we can update our records.\n\nRegards,\nAastha", rationale: "You asked for a firm tone. This is the second reminder.", tone: "firm", status: "paused", source_snapshot: {}, agent_decision: {}, customer_thread_id: "thread-acme", approved_at: null, sent_at: null, created_at: isoMinutesAgo(42), updated_at: isoMinutesAgo(17) },
   { id: "draft-nova", owner_id: "owner-demo", digest_id: "digest-demo", customer_id: "customer-nova", customer_email: "finance@novatex.co.in", invoice_ids: ["invoice-nova"], subject: "Final notice: Invoice INV-0987 remains unpaid", text_body: "Dear Nova Textiles team,\n\nDespite our previous reminders, the remaining payment of ₹5,000 for invoice INV-0987 is now 61 days overdue.\n\nPlease arrange payment within three business days or contact us if there is an issue preventing settlement.\n\nRegards,\nAastha", rationale: "Two earlier reminders received no response. The confirmed partial payment is reflected.", tone: "final", status: "pending", source_snapshot: {}, agent_decision: {}, customer_thread_id: "thread-nova", approved_at: null, sent_at: null, created_at: isoMinutesAgo(43), updated_at: isoMinutesAgo(43) },
+];
+
+const demoDigest: Digest = {
+  id: "digest-demo", owner_id: "owner-demo", run_date: dateDaysAgo(0), status: "building",
+  gmail_thread_id: null, owner_message_id: null, total_outstanding_paise: 1_700_000,
+  customer_count: 2, created_at: isoMinutesAgo(95),
+};
+
+let demoQueueItems: DigestItem[] = [
+  { id: "item-bharat", digest_id: "digest-demo", item_number: 1, customer_id: "customer-bharat", customer_name: "Bharat Traders", invoice_ids: ["invoice-bharat"], amount_paise: 1_200_000, oldest_due_date: dateDaysAgo(8), recommendation_reason: "Invoice INV-1051 has ₹12,000 outstanding; the oldest due date is 8 days overdue. Payment is not confirmed and no payment claim or dispute blocks follow-up. No prior reminder is recorded.", source_references: [], status: "actionable" },
+  { id: "item-nova", digest_id: "digest-demo", item_number: 2, customer_id: "customer-nova", customer_name: "Nova Textiles", invoice_ids: ["invoice-nova"], amount_paise: 500_000, oldest_due_date: dateDaysAgo(61), recommendation_reason: "Invoice INV-0987 has ₹5,000 outstanding; the oldest due date is 61 days overdue. 2 prior reminder(s) are recorded.", source_references: [], status: "drafted" },
 ];
 
 const demoActivity: ActivityLog[] = [
@@ -57,6 +71,31 @@ export const demoApi = {
   async listActivity() { await wait(); return demoActivity; },
   async listDrafts() { await wait(); return [...demoDrafts]; },
   async listSyncRuns() { await wait(); return demoSyncRuns; },
+  async buildDailyQueue(): Promise<DailyQueue> {
+    await wait();
+    return { digest: demoDigest, items: [...demoQueueItems], drafts: [...demoDrafts] };
+  },
+  async draftDigestItem(itemId: string, body: DraftItemRequest): Promise<AgentDraft> {
+    await wait();
+    const item = demoQueueItems.find((entry) => entry.id === itemId);
+    if (!item) throw new Error("That queue item is no longer available.");
+    const customer = demoCustomers.find((entry) => entry.id === item.customer_id);
+    const amount = `₹${(item.amount_paise / 100).toLocaleString("en-IN")}`;
+    const draft: AgentDraft = {
+      id: `draft-${item.customer_id}`, owner_id: "owner-demo", digest_id: "digest-demo",
+      customer_id: item.customer_id, customer_email: customer?.primary_email ?? "",
+      invoice_ids: item.invoice_ids,
+      subject: "A reminder about your outstanding balance",
+      text_body: `Hi ${customer?.name ?? "there"},\n\nThis is a ${body.tone} reminder that ${amount} remains outstanding. Could you let us know when we can expect payment?${body.note ? `\n\n${body.note}` : ""}\n\nThank you,\nAastha`,
+      rationale: `You asked for a ${body.tone} tone. The draft uses only ${customer?.name ?? "this customer"}'s own invoice evidence.`,
+      tone: body.tone, status: "pending", source_snapshot: {}, agent_decision: {},
+      customer_thread_id: null, approved_at: null, sent_at: null,
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    };
+    demoDrafts = [...demoDrafts.filter((entry) => entry.id !== draft.id), draft];
+    demoQueueItems = demoQueueItems.map((entry) => entry.id === itemId ? { ...entry, status: "drafted" } : entry);
+    return draft;
+  },
   async getConnection(): Promise<ConnectionStatus> { await wait(); return { connected: true, google_oauth_configured: true, razorpay_configured: true, accounts: [{ id: "gmail-demo", email_address: "aastha@topline.in", status: "connected", granted_scopes: ["gmail.readonly", "gmail.send"], backfill_status: "completed", last_backfill_at: isoMinutesAgo(10000), last_incremental_sync_at: isoMinutesAgo(82), connected_at: isoMinutesAgo(12000) }] }; },
   async getSession(): Promise<SessionInfo> { await wait(); return { authenticated: true, user: { id: "owner-demo", email: "aastha@topline.in", name: "Aastha" }, workspace: { id: "workspace-demo", business_name: "Topline (demo)" } }; },
   async logout() { await wait(); },

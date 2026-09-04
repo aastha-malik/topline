@@ -5,7 +5,9 @@ import type {
   AuthStart,
   ConnectionStatus,
   Customer,
+  DailyQueue,
   DashboardData,
+  DraftItemRequest,
   DraftUpdate,
   Invoice,
   LedgerSummary,
@@ -117,6 +119,9 @@ const liveApi = {
   listActivity: () => request<ActivityLog[]>("/activity?limit=100"),
   listDrafts: () => request<AgentDraft[]>("/agent/drafts"),
   listSyncRuns: () => request<SyncRun[]>("/sync/runs?limit=20"),
+  buildDailyQueue: () => request<DailyQueue>("/agent/daily-queue", { method: "POST", body: JSON.stringify({}) }),
+  draftDigestItem: (itemId: string, body: DraftItemRequest) =>
+    request<AgentDraft>(`/agent/digest-items/${itemId}/draft`, { method: "POST", body: JSON.stringify(body) }),
   async getConnection(): Promise<ConnectionStatus> {
     try {
       return await request<ConnectionStatus>("/auth/connection");

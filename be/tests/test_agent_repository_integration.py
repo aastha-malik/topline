@@ -13,6 +13,7 @@ from app.agent_layer import (
     models as _agent_models,  # noqa: F401 - registers shared metadata
 )
 from app.agent_layer.domain import AuditEvent, PaymentState, ReminderState
+from app.agent_layer.errors import NotFoundError
 from app.agent_layer.repository import SqlAlchemyAgentRepository
 from app.agent_layer.service import AgentOrchestrator
 from app.db import Base
@@ -150,6 +151,24 @@ class AgentRepositoryIntegrationTests(unittest.IsolatedAsyncioTestCase):
             any(reference["kind"] == "source_message" for reference in dossier.source_references)
         )
         self.assertIn("Payment is not confirmed", dossier.recommendation_reason)
+
+    async def test_daily_queue_persists_items_and_get_digest_item_scopes_to_owner(self):
+        service = AgentOrchestrator(repository=self.repo, mail=object(), agent=object())
+
+        queue = await service.get_daily_queue(
+            owner_id=self.owner_id, run_date=date(2026, 8, 27)
+        )
+
+        self.assertEqual(len(queue.items), 1)
+        item = queue.items[0]
+        self.assertEqual(item.customer_name, "Acme Retail")
+
+        fetched = await self.repo.get_digest_item(self.owner_id, item.id)
+        self.assertEqual(fetched.id, item.id)
+        self.assertEqual(tuple(fetched.invoice_ids), (self.invoice_id,))
+
+        with self.assertRaises(NotFoundError):
+            await self.repo.get_digest_item(str(uuid.uuid4()), item.id)
 
     async def test_pause_and_audit_update_canonical_ledger_tables(self):
         await self.repo.pause_invoices(

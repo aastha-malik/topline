@@ -379,6 +379,18 @@ class SqlAlchemyAgentRepository:
             ).all()
         return [self._item(row) for row in rows]
 
+    async def get_digest_item(
+        self, owner_id: str, digest_item_id: str
+    ) -> DigestItemRecord:
+        async with self._sessions() as session:
+            row = await session.get(AgentDigestItem, _uuid(digest_item_id))
+            digest = (
+                await session.get(AgentDigest, row.digest_id) if row is not None else None
+            )
+        if row is None or digest is None or str(digest.owner_id) != owner_id:
+            raise NotFoundError("Digest item not found")
+        return self._item(row)
+
     async def save_digest_item(self, item: DigestItemRecord) -> None:
         async with self._sessions() as session:
             row = await session.get(AgentDigestItem, _uuid(item.id))

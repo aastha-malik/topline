@@ -4,6 +4,7 @@ import { AppShell } from "./components/AppShell";
 import { ActivityScreen } from "./screens/ActivityScreen";
 import { ApprovalsScreen } from "./screens/ApprovalsScreen";
 import { ConnectScreen } from "./screens/ConnectScreen";
+import { DailyQueueScreen } from "./screens/DailyQueueScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { InvoicesScreen } from "./screens/InvoicesScreen";
 import { SignInScreen } from "./screens/SignInScreen";
@@ -14,6 +15,7 @@ export default function App() {
       <Route path="/signin" element={<SignInScreen />} />
       <Route element={<AppShell />}>
         <Route index element={<HomeScreen />} />
+        <Route path="queue" element={<DailyQueueScreen />} />
         <Route path="approvals" element={<ApprovalsScreen />} />
         <Route path="invoices" element={<InvoicesScreen />} />
         <Route path="activity" element={<ActivityScreen />} />

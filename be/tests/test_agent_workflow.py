@@ -13,6 +13,7 @@ from app.agent_layer.domain import (
     CustomerReplyDecision,
     CustomerReplyIntent,
     DigestItemRecord,
+    DigestItemStatus,
     DigestRecord,
     DraftRecord,
     DraftStatus,
@@ -29,7 +30,11 @@ from app.agent_layer.domain import (
     ReminderState,
     ReviewTaskRecord,
 )
-from app.agent_layer.errors import ApprovalRequiredError, NotFoundError
+from app.agent_layer.errors import (
+    ApprovalRequiredError,
+    NotFoundError,
+    UnsafeActionError,
+)
 from app.agent_layer.scheduler import register_daily_cycle_job
 from app.agent_layer.service import AgentOrchestrator
 from app.services.pdf import extract_pdf_text
@@ -229,6 +234,13 @@ class LedgerFixtureRepository:
             key=lambda item: item.item_number,
         )
 
+    async def get_digest_item(self, owner_id: str, digest_item_id: str):
+        item = self.items.get(digest_item_id)
+        digest = self.digests.get(item.digest_id) if item is not None else None
+        if item is None or digest is None or digest.owner_id != owner_id:
+            raise NotFoundError("Digest item not found")
+        return item
+
     async def save_digest_item(self, item: DigestItemRecord) -> None:
         self.items[item.id] = item
 
@@ -335,6 +347,9 @@ class ContextAwareFakeAgent:
 
     def __init__(self) -> None:
         self.ambiguous = False
+        # Test hooks for the drafting-citation guardrail.
+        self.forced_citations: tuple[str, ...] | None = None
+        self.cite_invoice_token = False
 
     async def parse_owner_command(self, *, owner_text: str, digest_items):
         if self.ambiguous or "maybe" in owner_text.lower():
@@ -367,6 +382,13 @@ class ContextAwareFakeAgent:
         customer = dossier_payload["customer"]
         invoice = dossier_payload["invoices"][0]
         evidence = dossier_payload["evidence"][0]
+        if self.forced_citations is not None:
+            citations = self.forced_citations
+        elif self.cite_invoice_token:
+            # The invoice's own id is a real dossier token, but not an evidence record.
+            citations = (invoice["id"],)
+        else:
+            citations = (evidence["id"],)
         return ReminderDraftDecision(
             subject=f"Follow-up on invoice {invoice['invoice_number']}",
             text_body=(
@@ -380,7 +402,7 @@ class ContextAwareFakeAgent:
             ),
             tone=tone,
             confidence=0.99,
-            cited_source_ids=(evidence["id"],),
+            cited_source_ids=citations,
             model_name=self.model_name,
         )
 
@@ -452,6 +474,114 @@ class AgentWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Nova Foods", second.text_body)
         self.assertNotEqual(first.text_body, second.text_body)
         self.assertNotEqual(first.rationale, second.rationale)
+
+    async def test_dashboard_daily_queue_builds_without_emailing_the_owner(self):
+        repo = LedgerFixtureRepository()
+        mail = FakeMailGateway()
+        service = AgentOrchestrator(
+            repository=repo, mail=mail, agent=ContextAwareFakeAgent()
+        )
+
+        result = await service.get_daily_queue(
+            owner_id=repo.owner.id, run_date=date(2026, 8, 27)
+        )
+
+        self.assertEqual(len(result.items), 2)
+        self.assertEqual(len(mail.owner_digests), 0)
+        self.assertNotIn(
+            repo.invoices["paid"].id,
+            {invoice_id for item in result.items for invoice_id in item.invoice_ids},
+        )
+        # A second open of the queue must not duplicate the items.
+        again = await service.get_daily_queue(
+            owner_id=repo.owner.id, run_date=date(2026, 8, 27)
+        )
+        self.assertEqual({item.id for item in again.items}, {item.id for item in result.items})
+
+    async def test_dashboard_draft_creates_a_pending_draft_and_sends_nothing(self):
+        item = self.cycle.items[0]
+
+        draft = await self.service.draft_digest_item(
+            owner_id=self.repo.owner.id,
+            digest_item_id=item.id,
+            tone="firm",
+            note="Second reminder — mention the PO.",
+            actor_id=self.repo.owner.id,
+        )
+
+        self.assertEqual(draft.status, DraftStatus.PENDING)
+        self.assertEqual(draft.tone, "firm")
+        self.assertEqual(self.repo.items[item.id].status, DigestItemStatus.DRAFTED)
+        self.assertEqual(len(self.mail.customer_emails), 0)
+        self.assertEqual(len(self.mail.owner_replies), 0)
+        self.assertIn("draft_created", [event.event_type for event in self.repo.audit])
+
+    async def test_dashboard_draft_rejects_and_audits_an_invented_citation(self):
+        self.agent.forced_citations = ("ref-9999",)  # never a token Topline issued
+        item = self.cycle.items[0]
+
+        with self.assertRaises(UnsafeActionError):
+            await self.service.draft_digest_item(
+                owner_id=self.repo.owner.id,
+                digest_item_id=item.id,
+                actor_id=self.repo.owner.id,
+            )
+
+        self.assertEqual(len(self.repo.drafts), 0)
+        self.assertEqual(self.repo.items[item.id].status, DigestItemStatus.ACTIONABLE)
+        rejected = [event for event in self.repo.audit if event.event_type == "draft_rejected"]
+        self.assertEqual(len(rejected), 1)
+        self.assertEqual(rejected[0].decision["reason"], "cited_evidence_not_in_dossier")
+        self.assertIn("ref-9999", rejected[0].decision["invented_citations"])
+
+    async def test_dashboard_draft_survives_a_non_evidence_dossier_reference(self):
+        # Citing the invoice's own id (a real dossier token, not an evidence record)
+        # must not sink an otherwise-valid draft.
+        self.agent.cite_invoice_token = True
+        item = self.cycle.items[0]
+
+        draft = await self.service.draft_digest_item(
+            owner_id=self.repo.owner.id,
+            digest_item_id=item.id,
+            actor_id=self.repo.owner.id,
+        )
+
+        self.assertEqual(draft.status, DraftStatus.PENDING)
+        invoice_id = self.repo.invoices["acme"].id
+        self.assertNotIn(invoice_id, draft.source_snapshot["cited_source_ids"])
+        self.assertIn(invoice_id, draft.source_snapshot["cited_references"])
+
+    async def test_dashboard_draft_rejects_a_skipped_item(self):
+        item = self.cycle.items[0]
+        self.repo.items[item.id].status = DigestItemStatus.SKIPPED
+
+        with self.assertRaises(UnsafeActionError):
+            await self.service.draft_digest_item(
+                owner_id=self.repo.owner.id,
+                digest_item_id=item.id,
+                actor_id=self.repo.owner.id,
+            )
+        self.assertEqual(len(self.repo.drafts), 0)
+
+    async def test_dashboard_draft_rejects_an_unknown_tone(self):
+        item = self.cycle.items[0]
+
+        with self.assertRaises(UnsafeActionError):
+            await self.service.draft_digest_item(
+                owner_id=self.repo.owner.id,
+                digest_item_id=item.id,
+                tone="aggressive",
+                actor_id=self.repo.owner.id,
+            )
+        self.assertEqual(len(self.repo.drafts), 0)
+
+    async def test_dashboard_draft_of_unknown_item_is_not_found(self):
+        with self.assertRaises(NotFoundError):
+            await self.service.draft_digest_item(
+                owner_id=self.repo.owner.id,
+                digest_item_id=uid(),
+                actor_id=self.repo.owner.id,
+            )
 
     async def test_ambiguous_owner_reply_never_sends(self):
         self.agent.ambiguous = True

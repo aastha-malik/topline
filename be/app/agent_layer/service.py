@@ -5,7 +5,7 @@ import re
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -21,6 +21,7 @@ from .domain import (
     DailyCycleResult,
     DigestItemRecord,
     DigestItemStatus,
+    DigestRecord,
     DigestStatus,
     DraftRecord,
     DraftStatus,
@@ -45,6 +46,12 @@ from .templates import (
 _SEND_COMMAND = re.compile(
     r"^\s*send\s+(?P<selection>all|\d+(?:\s*(?:,|and)\s*\d+)*)\s*[.!]?\s*$",
     re.IGNORECASE,
+)
+#: Tones the drafting model is told it may use (see ``GeminiAgent.parse_owner_command``).
+_ALLOWED_TONES = frozenset({"polite", "normal", "firm", "final"})
+#: Dossier fields that carry an opaque record id the model might cite.
+_ID_KEYS = frozenset(
+    {"id", "source_message_id", "source_attachment_id", "gmail_thread_id", "draft_id"}
 )
 _QUOTED_MARKERS = (
     re.compile(r"^On .+wrote:\s*$", re.IGNORECASE),
@@ -82,6 +89,39 @@ def strip_quoted_history(text: str) -> str:
 
 def _uuid() -> str:
     return str(uuid.uuid4())
+
+
+def _tokenize_dossier_ids(payload: Any) -> tuple[Any, dict[str, str]]:
+    """Swap opaque record ids in the dossier for short, stable tokens (``ref-1`` …).
+
+    The drafting model only ever needs to *point back* at a piece of the dossier,
+    not reproduce a 36-character UUID. Short tokens make citations reliable, and
+    make an invented citation unambiguous: any token the model returns that we did
+    not issue is, by construction, not from this customer's file. The same id maps
+    to the same token everywhere it appears, so a citation still resolves 1:1.
+    """
+
+    id_to_token: dict[str, str] = {}
+
+    def convert(node: Any) -> Any:
+        if isinstance(node, dict):
+            converted: dict[str, Any] = {}
+            for key, value in node.items():
+                if key in _ID_KEYS and isinstance(value, str) and value:
+                    token = id_to_token.get(value)
+                    if token is None:
+                        token = f"ref-{len(id_to_token) + 1}"
+                        id_to_token[value] = token
+                    converted[key] = token
+                else:
+                    converted[key] = convert(value)
+            return converted
+        if isinstance(node, list):
+            return [convert(entry) for entry in node]
+        return node
+
+    tokenized = convert(payload)
+    return tokenized, {token: original for original, token in id_to_token.items()}
 
 
 def _serialize(value: Any) -> Any:
@@ -200,54 +240,12 @@ class AgentOrchestrator:
         if digest.status == DigestStatus.SENT:
             return DailyCycleResult(digest=digest, items=tuple(existing_items))
 
-        items = existing_items
-        if not items:
-            candidates = await self.repository.list_actionable_invoices(owner_id, run_date)
-            actionable = [invoice for invoice in candidates if invoice.is_actionable(run_date)]
-            by_customer: dict[str, list[InvoiceRecord]] = defaultdict(list)
-            for invoice in actionable:
-                by_customer[invoice.customer_id].append(invoice)
-
-            for item_number, (customer_id, invoices) in enumerate(by_customer.items(), start=1):
-                dossier = await self.get_customer_dossier(
-                    owner_id=owner_id,
-                    customer_id=customer_id,
-                    invoice_ids=[invoice.id for invoice in invoices],
-                    as_of=run_date,
-                )
-                oldest_due_date = min(
-                    invoice.due_date for invoice in invoices if invoice.due_date is not None
-                )
-                item = DigestItemRecord(
-                    id=_uuid(),
-                    digest_id=digest.id,
-                    item_number=item_number,
-                    customer_id=customer_id,
-                    customer_name=dossier.customer.name,
-                    invoice_ids=tuple(invoice.id for invoice in invoices),
-                    amount_paise=sum(invoice.balance_paise for invoice in invoices),
-                    oldest_due_date=oldest_due_date,
-                    recommendation_reason=dossier.recommendation_reason,
-                    source_references=dossier.source_references,
-                )
-                await self.repository.add_digest_item(item)
-                items.append(item)
-                await self.repository.append_audit(
-                    AuditEvent(
-                        owner_id=owner_id,
-                        event_type="daily_item_selected",
-                        actor_type="rules",
-                        actor_id=None,
-                        entity_type="digest_item",
-                        entity_id=item.id,
-                        decision={
-                            "actionable": True,
-                            "reason": item.recommendation_reason,
-                            "invoice_ids": list(item.invoice_ids),
-                        },
-                        source_evidence=tuple(item.source_references),
-                    )
-                )
+        items = await self._ensure_digest_items(
+            owner_id=owner_id,
+            digest=digest,
+            run_date=run_date,
+            existing_items=existing_items,
+        )
 
         digest.customer_count = len(items)
         digest.total_outstanding_paise = sum(item.amount_paise for item in items)
@@ -297,6 +295,170 @@ class AgentOrchestrator:
             )
         )
         return DailyCycleResult(digest=digest, items=tuple(items))
+
+    async def _ensure_digest_items(
+        self,
+        *,
+        owner_id: str,
+        digest: DigestRecord,
+        run_date: date,
+        existing_items: Sequence[DigestItemRecord],
+    ) -> list[DigestItemRecord]:
+        """Select and persist the day's actionable digest items exactly once.
+
+        The invoice list comes straight from the deterministic rulebook
+        (``list_actionable_invoices`` plus a re-check of ``is_actionable``); the
+        agent never invents a candidate. Called with a non-empty ``existing_items``
+        this is a no-op, which is what keeps the daily cycle idempotent.
+        """
+
+        if existing_items:
+            return list(existing_items)
+
+        candidates = await self.repository.list_actionable_invoices(owner_id, run_date)
+        actionable = [invoice for invoice in candidates if invoice.is_actionable(run_date)]
+        by_customer: dict[str, list[InvoiceRecord]] = defaultdict(list)
+        for invoice in actionable:
+            by_customer[invoice.customer_id].append(invoice)
+
+        items: list[DigestItemRecord] = []
+        for item_number, (customer_id, invoices) in enumerate(by_customer.items(), start=1):
+            dossier = await self.get_customer_dossier(
+                owner_id=owner_id,
+                customer_id=customer_id,
+                invoice_ids=[invoice.id for invoice in invoices],
+                as_of=run_date,
+            )
+            oldest_due_date = min(
+                invoice.due_date for invoice in invoices if invoice.due_date is not None
+            )
+            item = DigestItemRecord(
+                id=_uuid(),
+                digest_id=digest.id,
+                item_number=item_number,
+                customer_id=customer_id,
+                customer_name=dossier.customer.name,
+                invoice_ids=tuple(invoice.id for invoice in invoices),
+                amount_paise=sum(invoice.balance_paise for invoice in invoices),
+                oldest_due_date=oldest_due_date,
+                recommendation_reason=dossier.recommendation_reason,
+                source_references=dossier.source_references,
+            )
+            await self.repository.add_digest_item(item)
+            items.append(item)
+            await self.repository.append_audit(
+                AuditEvent(
+                    owner_id=owner_id,
+                    event_type="daily_item_selected",
+                    actor_type="rules",
+                    actor_id=None,
+                    entity_type="digest_item",
+                    entity_id=item.id,
+                    decision={
+                        "actionable": True,
+                        "reason": item.recommendation_reason,
+                        "invoice_ids": list(item.invoice_ids),
+                    },
+                    source_evidence=tuple(item.source_references),
+                )
+            )
+        return items
+
+    async def get_daily_queue(
+        self, *, owner_id: str, run_date: date | None = None
+    ) -> DailyCycleResult:
+        """Build (without sending) the day's reminder queue for the dashboard.
+
+        This is the dashboard-side counterpart to the first half of
+        ``run_daily_cycle``: it selects and groups the invoices the rulebook
+        already marked actionable, but it never emails the owner. The 09:00 IST
+        cron still owns sending the digest email; if it has already run today this
+        simply returns the queue it built.
+        """
+
+        cycle_date = run_date or _business_today()
+        await self.repository.get_owner(owner_id)
+        digest = await self.repository.get_or_create_digest(owner_id, cycle_date)
+        existing_items = list(await self.repository.list_digest_items(owner_id, digest.id))
+        items = await self._ensure_digest_items(
+            owner_id=owner_id,
+            digest=digest,
+            run_date=cycle_date,
+            existing_items=existing_items,
+        )
+        if not existing_items and digest.status != DigestStatus.SENT:
+            digest.customer_count = len(items)
+            digest.total_outstanding_paise = sum(item.amount_paise for item in items)
+            await self.repository.save_digest(digest)
+        return DailyCycleResult(digest=digest, items=tuple(items))
+
+    async def draft_digest_item(
+        self,
+        *,
+        owner_id: str,
+        digest_item_id: str,
+        tone: str = "normal",
+        note: str | None = None,
+        actor_id: str,
+    ) -> DraftRecord:
+        """Produce a reminder draft for one digest item, on request from the dashboard.
+
+        This is the dashboard path into the same guarded drafting the owner-reply
+        flow uses: it reuses ``_create_customer_draft``, so the confidence
+        threshold, the "cite only this customer's own evidence" rule, and the
+        separate approval/send gates all still apply. It never sends anything.
+        """
+
+        item = await self.repository.get_digest_item(owner_id, digest_item_id)
+        if item.status not in {DigestItemStatus.ACTIONABLE, DigestItemStatus.DRAFTED}:
+            raise UnsafeActionError(
+                f"Digest item {item.item_number} is {item.status} and cannot be drafted"
+            )
+        normalized_tone = (tone or "normal").strip().lower()
+        if normalized_tone not in _ALLOWED_TONES:
+            raise UnsafeActionError(
+                "Tone must be one of: " + ", ".join(sorted(_ALLOWED_TONES))
+            )
+        clean_note = (note or "").strip() or None
+        action = OwnerAction(
+            action=OwnerActionKind.DRAFT,
+            confidence=1.0,
+            reason="Owner requested this reminder draft from the dashboard",
+            item_number=item.item_number,
+            customer_id=item.customer_id,
+            tone=normalized_tone,
+            note=clean_note,
+        )
+        try:
+            return await self._create_customer_draft(
+                owner_id=owner_id,
+                digest_id=item.digest_id,
+                item=item,
+                action=action,
+                actor_message_id=actor_id,
+            )
+        except UnsafeActionError:
+            raise
+        except Exception as exc:
+            await self.repository.append_audit(
+                AuditEvent(
+                    owner_id=owner_id,
+                    event_type="dashboard_draft_failed",
+                    actor_type="owner",
+                    actor_id=actor_id,
+                    entity_type="digest_item",
+                    entity_id=item.id,
+                    decision={
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                        "tone": normalized_tone,
+                    },
+                )
+            )
+            raise UnsafeActionError(
+                "Topline could not prepare a safe draft for this item. Nothing was "
+                "created; try again or adjust the tone or note."
+            ) from exc
 
     async def process_owner_reply(
         self,
@@ -476,6 +638,45 @@ class AgentOrchestrator:
             selected_ids.add(selected.id)
         return None
 
+    async def _audit_draft_rejected(
+        self,
+        *,
+        owner_id: str,
+        item: DigestItemRecord,
+        actor_id: str | None,
+        reason: str,
+        detail: dict[str, Any],
+        decision: Any = None,
+    ) -> None:
+        """Leave a durable, owner-visible record when a draft is discarded pre-save.
+
+        Every guardrail in ``_create_customer_draft`` short-circuits before a draft
+        row exists, so without this the Activity trail and logs show nothing about
+        what the model produced or why Topline refused it.
+        """
+
+        payload: dict[str, Any] = {"reason": reason, **detail}
+        model_name = None
+        prompt_version = None
+        if decision is not None:
+            payload["agent_output"] = _serialize(decision)
+            model_name = getattr(decision, "model_name", None)
+            prompt_version = getattr(decision, "prompt_version", None)
+        await self.repository.append_audit(
+            AuditEvent(
+                owner_id=owner_id,
+                event_type="draft_rejected",
+                actor_type="agent",
+                actor_id=actor_id,
+                entity_type="digest_item",
+                entity_id=item.id,
+                decision=payload,
+                source_evidence=tuple(item.source_references),
+                model_name=model_name,
+                prompt_version=prompt_version,
+            )
+        )
+
     async def _create_customer_draft(
         self,
         *,
@@ -491,19 +692,55 @@ class AgentOrchestrator:
             invoice_ids=item.invoice_ids,
         )
         if any(not invoice.is_actionable(_business_today()) for invoice in dossier.invoices):
+            await self._audit_draft_rejected(
+                owner_id=owner_id,
+                item=item,
+                actor_id=actor_message_id,
+                reason="invoice_state_changed",
+                detail={},
+            )
             raise UnsafeActionError("The invoice state changed and no longer permits drafting")
+
+        dossier_payload = dossier.prompt_payload()
+        tokenized_payload, token_to_id = _tokenize_dossier_ids(dossier_payload)
         decision = await self.agent.draft_reminder(
-            dossier_payload=dossier.prompt_payload(),
+            dossier_payload=tokenized_payload,
             tone=action.tone or "normal",
             owner_note=action.note,
         )
         if decision.confidence < self.confidence_threshold:
+            await self._audit_draft_rejected(
+                owner_id=owner_id,
+                item=item,
+                actor_id=actor_message_id,
+                reason="low_confidence",
+                detail={"confidence": decision.confidence, "threshold": self.confidence_threshold},
+                decision=decision,
+            )
             raise UnsafeActionError("Gemini draft confidence is below the review threshold")
-        allowed_source_ids = {
+
+        cited = [value.strip() for value in decision.cited_source_ids if value and value.strip()]
+        invented = [value for value in cited if value not in token_to_id]
+        if invented:
+            await self._audit_draft_rejected(
+                owner_id=owner_id,
+                item=item,
+                actor_id=actor_message_id,
+                reason="cited_evidence_not_in_dossier",
+                detail={"invented_citations": invented, "cited": cited},
+                decision=decision,
+            )
+            raise UnsafeActionError(
+                "Gemini cited evidence that is not in this customer's file; the draft was discarded."
+            )
+        resolved_ids = tuple(dict.fromkeys(token_to_id[value] for value in cited))
+        evidence_ids = {
             reference["id"] for reference in dossier.source_references if "id" in reference
         }
-        if not set(decision.cited_source_ids).issubset(allowed_source_ids):
-            raise UnsafeActionError("Gemini cited evidence outside the customer dossier")
+        decision = replace(
+            decision,
+            cited_source_ids=tuple(rid for rid in resolved_ids if rid in evidence_ids),
+        )
         existing = await self.repository.list_drafts(owner_id, digest_id)
         draft_number = max((draft.draft_number for draft in existing), default=0) + 1
         brand = await self.repository.get_brand(owner_id)
@@ -522,8 +759,9 @@ class AgentOrchestrator:
             tone=decision.tone,
             status=DraftStatus.PENDING,
             source_snapshot={
-                "dossier": dossier.prompt_payload(),
+                "dossier": dossier_payload,
                 "cited_source_ids": list(decision.cited_source_ids),
+                "cited_references": list(resolved_ids),
             },
             agent_decision=_serialize(decision),
             prompt_version=decision.prompt_version,

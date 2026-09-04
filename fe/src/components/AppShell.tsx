@@ -3,6 +3,7 @@ import {
   CircleUserRound,
   Home,
   Link2,
+  ListChecks,
   LogOut,
   Moon,
   ReceiptIndianRupee,
@@ -19,6 +20,7 @@ import { LoadingState } from "./FeedbackState";
 
 const navigation = [
   { label: "Home", mobileLabel: "Home", path: "/", icon: Home },
+  { label: "Daily queue", mobileLabel: "Queue", path: "/queue", icon: ListChecks },
   { label: "Approvals", mobileLabel: "Approve", path: "/approvals", icon: Send },
   { label: "Invoices", mobileLabel: "Invoices", path: "/invoices", icon: ReceiptIndianRupee },
   { label: "Activity", mobileLabel: "Activity", path: "/activity", icon: Activity },

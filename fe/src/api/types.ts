@@ -81,6 +81,43 @@ export interface AgentDraft {
   updated_at: string;
 }
 
+export interface DigestItem {
+  id: UUID;
+  digest_id: UUID;
+  item_number: number;
+  customer_id: UUID;
+  customer_name: string;
+  invoice_ids: UUID[];
+  amount_paise: number;
+  oldest_due_date: string;
+  recommendation_reason: string;
+  source_references: Array<Record<string, string>>;
+  status: string; // actionable | drafted | skipped | paused
+}
+
+export interface Digest {
+  id: UUID;
+  owner_id: UUID;
+  run_date: string;
+  status: string;
+  gmail_thread_id: string | null;
+  owner_message_id: string | null;
+  total_outstanding_paise: number;
+  customer_count: number;
+  created_at: string;
+}
+
+export interface DailyQueue {
+  digest: Digest;
+  items: DigestItem[];
+  drafts: AgentDraft[];
+}
+
+export interface DraftItemRequest {
+  tone: string;
+  note?: string | null;
+}
+
 export interface GmailAccount {
   id: UUID;
   email_address: string;
